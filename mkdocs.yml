@@ -1,0 +1,44 @@
+site_name: GenAIScope
+site_description: Inspect, test, secure, optimize, and operationalize GenAI applications
+theme:
+  name: material
+  palette:
+    primary: blue
+    accent: light blue
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - search.suggest
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - Installation: installation.md
+  - Concepts: concepts.md
+  - CLI Reference: cli.md
+  - API Reference: api-reference.md
+  - Recipes:
+    - Prompt Inspection: recipes/prompt-inspection.md
+    - RAG Inspection: recipes/rag-inspection.md
+    - Cost Analysis: recipes/cost-analysis.md
+    - PII Redaction: recipes/pii-redaction.md
+    - Structured Output: recipes/structured-output.md
+    - Agent Safety: recipes/agent-safety.md
+    - CI/CD Integration: recipes/ci-cd.md
+  - Comparisons:
+    - vs Langfuse: comparisons/langfuse.md
+    - vs Ragas: comparisons/ragas.md
+    - vs DeepEval: comparisons/deepeval.md
+    - vs Helicone: comparisons/helicone.md
+
+plugins:
+  - search
+  - include-markdown
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
