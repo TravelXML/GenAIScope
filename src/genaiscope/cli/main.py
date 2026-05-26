@@ -1,21 +1,20 @@
 """CLI interface for GenAIScope."""
 
-import json
 from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from genaiscope.inspect import Inspector
-from genaiscope.core.config import get_config
-from genaiscope.core.logging import get_logger
 from genaiscope.analyzers import (
     CostAnalyzer,
-    PIIDetector,
     HallucinationDetector,
+    PIIDetector,
     SafetyAnalyzer,
 )
+from genaiscope.core.config import get_config
+from genaiscope.core.logging import get_logger
+from genaiscope.inspect import Inspector
 
 logger = get_logger(__name__)
 console = Console()
@@ -38,7 +37,7 @@ def version() -> None:
 def config_show() -> None:
     """Show current configuration."""
     config = get_config()
-    
+
     table = Table(title="GenAIScope Configuration")
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="magenta")
@@ -84,9 +83,7 @@ def detect_pii(text: str, redact: bool = False) -> None:
 
 
 @app.command()
-def estimate_cost(
-    model: str, input_tokens: int, output_tokens: int
-) -> None:
+def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> None:
     """Estimate API costs."""
     analyzer = CostAnalyzer()
     costs = analyzer.estimate_cost(model, input_tokens, output_tokens)
@@ -111,7 +108,6 @@ def analyze_text(
     """Analyze text for various issues."""
     console.print("[bold]Text Analysis Report[/bold]\n")
 
-    # Safety analysis
     safety_analyzer = SafetyAnalyzer()
     safety_issues = safety_analyzer.analyze(text)
 
@@ -120,21 +116,19 @@ def analyze_text(
         for issue_type, matches in safety_issues.items():
             console.print(f"  {issue_type}: Found {len(matches)} occurrence(s)")
 
-    # PII analysis
     if analyze_pii:
         pii_detector = PIIDetector()
         pii_detections = pii_detector.detect(text)
-        
+
         if pii_detections:
             console.print("\n[yellow]PII Detections:[/yellow]")
             for pii_type, matches in pii_detections.items():
                 console.print(f"  {pii_type}: {len(matches)} occurrence(s)")
 
-    # Hallucination analysis
     if analyze_hallucination and context:
         hallucination_detector = HallucinationDetector()
         hallucination_results = hallucination_detector.detect(context, text)
-        
+
         console.print("\n[yellow]Hallucination Analysis:[/yellow]")
         console.print(f"  Hallucination Risk: {hallucination_results['hallucination_risk']:.2f}")
         console.print(f"  Contains Uncertainty: {hallucination_results['contains_uncertainty']}")
