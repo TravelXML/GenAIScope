@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.91] - 2026-05-27
+
+### Fixed
+
+- Completed PyPI README footer links for contribution guidelines, license, documentation, issues, and discussions.
+
+## [0.2.90] - 2026-05-27
+
+### Added
+
+- SQLite-backed local memory store
+- Local memory search
+- Prompt quality coach with comments and suggestions
+- File memory for TXT, MD, JSON, and CSV
+- Local trace logging
+- Static HTML dashboard
+- CLI command groups for memory, files, trace, and dashboard
+- Tests, examples, docs, and release notes for local-first workflows
+
+### Changed
+
+- Version updated to 0.2.90
+- README expanded with memory, file, tracing, and dashboard examples
+
 ## [0.1.0] - 2024-05-24
 
 ### Added

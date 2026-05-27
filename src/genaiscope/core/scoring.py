@@ -1,6 +1,7 @@
 """Scoring engine for evaluations."""
 
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from genaiscope.core.models import EvaluationResult
 
@@ -10,7 +11,7 @@ class ScoringEngine:
 
     def __init__(self) -> None:
         """Initialize the scoring engine."""
-        self.scorers: Dict[str, Callable[[str], float]] = {}
+        self.scorers: dict[str, Callable[[str], float]] = {}
         self._register_default_scorers()
 
     def _register_default_scorers(self) -> None:

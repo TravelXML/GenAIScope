@@ -1,8 +1,8 @@
 # GenAIScope
 
-**Inspect, test, secure, optimize, and operationalize GenAI applications before production.**
+**Local-first AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks.**
 
-GenAIScope is a production-quality Python library that helps developers, CTOs, and AI engineers identify and fix issues in GenAI applications. It provides lightweight, powerful tooling for detecting gaps in prompts, RAG quality, hallucination risks, structured output failures, unsafe agent tools, PII leakage, cost inefficiency, weak testing, missing observability, and poor production readiness.
+GenAIScope is a local-first Python toolkit for AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks. It helps developers, CTOs, and AI engineers identify and fix issues in GenAI applications before production.
 
 ## Key Features
 
@@ -12,6 +12,9 @@ GenAIScope is a production-quality Python library that helps developers, CTOs, a
 - **Local-first** - Run everything locally by default
 - **Modular design** - Mix and match what you need
 - **Production-ready** - Type-safe, async-capable, fully tested
+- **SQLite local memory** - Store user preferences, project facts, prompts, and document chunks
+- **Prompt coach** - Get local comments and improvement suggestions for weak prompts
+- **Static dashboard** - Generate a local HTML dashboard with memory, file, prompt, trace, and cost insights
 
 ## What Makes GenAIScope Different
 
@@ -51,6 +54,65 @@ pip install genaiscope[all]
 ```
 
 ## Quick Start
+
+### Local Memory
+
+```python
+from genaiscope.memory import MemoryStore
+
+memory = MemoryStore()
+memory.add("User prefers short CTO-level answers.", memory_type="preference")
+results = memory.search("answer style")
+print(results)
+```
+
+### Prompt Coach
+
+```python
+from genaiscope.memory import MemoryStore
+
+memory = MemoryStore()
+item = memory.add_prompt("Summarize this properly.")
+print(item.prompt_score)
+print(item.prompt_comments)
+print(item.prompt_suggestions)
+```
+
+GenAIScope automatically comments on weak prompts and suggests improvements.
+
+### File Memory
+
+```python
+from genaiscope.files import FileMemory
+
+files = FileMemory()
+files.add_file("README.md")
+results = files.search("installation")
+print(results)
+```
+
+### Local Tracing
+
+```python
+from genaiscope.tracing import LocalTracer
+
+tracer = LocalTracer()
+tracer.log(
+    name="demo-call",
+    input_text="hello",
+    output_text="hi",
+    model="local",
+    input_tokens=5,
+    output_tokens=2,
+    estimated_cost=0.0,
+)
+```
+
+### Dashboard
+
+```bash
+genaiscope dashboard generate
+```
 
 ### Python API
 
@@ -106,7 +168,33 @@ genaiscope analyze-text "Your text here" --analyze-pii --analyze-hallucination -
 
 # Validate output format
 genaiscope validate-output '{"test": "data"}' --format json
+
+# v0.2.91 local memory and dashboard
+genaiscope memory add "User prefers concise answers" --type preference --tags user,style
+genaiscope memory add-prompt "Summarize this properly."
+genaiscope memory search "concise answers"
+genaiscope files add README.md
+genaiscope trace stats
+genaiscope dashboard generate
 ```
+
+## v0.2.91 Roadmap Notes
+
+Known limitations:
+
+- v0.2.91 uses local SQLite only
+- Search uses local keyword/hybrid scoring, not real embeddings
+- PDF/DOCX ingestion is not included yet
+- Dashboard output is static HTML
+
+Planned for a later release:
+
+- Redis backend
+- Real vector DB support
+- Semantic cache
+- MCP memory server
+- REST API
+- Docker Compose
 
 ## Core Modules
 
@@ -366,17 +454,17 @@ pytest tests/ -v
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see the [contribution guidelines](https://github.com/TravelXML/genaiscope/blob/main/CONTRIBUTING.md).
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License - see the [license file](https://github.com/TravelXML/genaiscope/blob/main/LICENSE) for details.
 
 ## Support
 
-- 📖 [Documentation](https://genaiscope.dev)
-- 🐛 [Issue Tracker](https://github.com/genaiscope/genaiscope/issues)
-- 💬 [Discussions](https://github.com/genaiscope/genaiscope/discussions)
+- 📖 [Documentation](https://travelxml.github.io/genaiscope)
+- 🐛 [Issue Tracker](https://github.com/TravelXML/genaiscope/issues)
+- 💬 [Discussions](https://github.com/TravelXML/genaiscope/discussions)
 
 ## Roadmap
 

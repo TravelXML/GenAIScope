@@ -1,18 +1,15 @@
 """Core inspection modules."""
 
-import re
-from typing import List, Optional
-
 from genaiscope.core.models import EvaluationResult
 
 
 class PromptInspector:
     """Inspector for prompts."""
 
-    def inspect(self, prompt: str) -> List[EvaluationResult]:
+    def inspect(self, prompt: str) -> list[EvaluationResult]:
         """Inspect a prompt."""
         results = []
-        
+
         # Check if prompt is too short
         if len(prompt.strip()) < 10:
             results.append(
@@ -22,7 +19,7 @@ class PromptInspector:
                     reasoning="Prompt is very short and may lack context",
                 )
             )
-        
+
         # Check for common issues
         if "???" in prompt:
             results.append(
@@ -32,7 +29,7 @@ class PromptInspector:
                     reasoning="Prompt contains unclear placeholders",
                 )
             )
-        
+
         # Positive evaluation
         results.append(
             EvaluationResult(
@@ -41,22 +38,22 @@ class PromptInspector:
                 reasoning="Prompt structure looks reasonable",
             )
         )
-        
+
         return results
 
 
 class RAGInspector:
     """Inspector for RAG systems."""
 
-    def inspect(self, query: str, context: str, response: str) -> List[EvaluationResult]:
+    def inspect(self, query: str, context: str, response: str) -> list[EvaluationResult]:
         """Inspect RAG output."""
         results = []
-        
+
         # Check if context is being used
         context_words = set(context.lower().split())
         response_words = set(response.lower().split())
         overlap = len(context_words & response_words) / max(1, len(context_words))
-        
+
         results.append(
             EvaluationResult(
                 score=overlap,
@@ -64,7 +61,7 @@ class RAGInspector:
                 reasoning=f"Context usage ratio: {overlap:.2f}",
             )
         )
-        
+
         # Check if context is empty
         if not context or len(context.strip()) == 0:
             results.append(
@@ -74,17 +71,17 @@ class RAGInspector:
                     reasoning="No context provided for RAG",
                 )
             )
-        
+
         return results
 
 
 class OutputInspector:
     """Inspector for model outputs."""
 
-    def inspect(self, output: str, expected_format: Optional[str] = None) -> List[EvaluationResult]:
+    def inspect(self, output: str, expected_format: str | None = None) -> list[EvaluationResult]:
         """Inspect model output."""
         results = []
-        
+
         # Check for empty output
         if not output or len(output.strip()) == 0:
             results.append(
@@ -102,7 +99,7 @@ class OutputInspector:
                     reasoning="Output is not empty",
                 )
             )
-        
+
         # Check for format if specified
         if expected_format:
             if self._matches_format(output, expected_format):
@@ -121,7 +118,7 @@ class OutputInspector:
                         reasoning=f"Output may not match {expected_format} format",
                     )
                 )
-        
+
         return results
 
     @staticmethod
@@ -130,6 +127,7 @@ class OutputInspector:
         if expected_format.lower() == "json":
             try:
                 import json
+
                 json.loads(output)
                 return True
             except (ValueError, TypeError):

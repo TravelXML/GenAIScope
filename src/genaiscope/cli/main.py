@@ -1,9 +1,11 @@
 """CLI interface for GenAIScope."""
 
-from typing import Optional
+import webbrowser
+from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 
 from genaiscope.analyzers import (
@@ -14,7 +16,11 @@ from genaiscope.analyzers import (
 )
 from genaiscope.core.config import get_config
 from genaiscope.core.logging import get_logger
+from genaiscope.dashboard import generate_dashboard
+from genaiscope.files import FileMemory
 from genaiscope.inspect import Inspector
+from genaiscope.memory import MemoryStore
+from genaiscope.tracing import LocalTracer
 
 logger = get_logger(__name__)
 console = Console()
@@ -23,6 +29,26 @@ app = typer.Typer(
     help="GenAIScope: Inspect, test, secure, optimize, and operationalize GenAI applications.",
     no_args_is_help=True,
 )
+memory_app = typer.Typer(help="Local memory commands.", no_args_is_help=True)
+files_app = typer.Typer(help="Local file memory commands.", no_args_is_help=True)
+trace_app = typer.Typer(help="Local trace commands.", no_args_is_help=True)
+dashboard_app = typer.Typer(help="Local dashboard commands.", no_args_is_help=True)
+
+app.add_typer(memory_app, name="memory")
+app.add_typer(files_app, name="files")
+app.add_typer(trace_app, name="trace")
+app.add_typer(dashboard_app, name="dashboard")
+
+
+def _parse_tags(tags: str | None) -> list[str]:
+    if not tags:
+        return []
+    return [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+
+def _truncate(value: str | None, length: int = 80) -> str:
+    text = value or ""
+    return text if len(text) <= length else text[: length - 3] + "..."
 
 
 @app.command()
@@ -61,7 +87,7 @@ def inspect_prompt(prompt: str, output_format: str = "text") -> None:
             console.print(report.summary())
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command()
@@ -103,7 +129,7 @@ def analyze_text(
     text: str,
     analyze_pii: bool = False,
     analyze_hallucination: bool = False,
-    context: Optional[str] = None,
+    context: str | None = None,
 ) -> None:
     """Analyze text for various issues."""
     console.print("[bold]Text Analysis Report[/bold]\n")
@@ -132,7 +158,9 @@ def analyze_text(
         console.print("\n[yellow]Hallucination Analysis:[/yellow]")
         console.print(f"  Hallucination Risk: {hallucination_results['hallucination_risk']:.2f}")
         console.print(f"  Contains Uncertainty: {hallucination_results['contains_uncertainty']}")
-        console.print(f"  Unsupported Statements: {hallucination_results['unsupported_statements']}")
+        console.print(
+            f"  Unsupported Statements: {hallucination_results['unsupported_statements']}"
+        )
 
 
 @app.command()
@@ -161,6 +189,291 @@ def validate_output(
         console.print(f"[red]✗ Invalid {format.upper()} output[/red]")
         if "error" in result:
             console.print(f"  Error: {result['error']}")
+
+
+@memory_app.command("add")
+def memory_add(
+    content: str,
+    memory_type: str = typer.Option("general", "--type", help="Memory type."),
+    user_id: str | None = typer.Option(None, "--user-id", help="User scope."),
+    tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags."),
+    db_path: Path | None = typer.Option(None, "--db-path", help="SQLite DB path."),
+) -> None:
+    """Add a local memory."""
+
+    memory = MemoryStore(db_path=db_path)
+    item = memory.add(content, memory_type=memory_type, user_id=user_id, tags=_parse_tags(tags))
+    console.print(
+        Panel.fit(f"Memory ID: {item.id}\nType: {item.memory_type}", title="Memory added")
+    )
+    memory.close()
+
+
+@memory_app.command("add-prompt")
+def memory_add_prompt(
+    prompt: str,
+    user_id: str | None = typer.Option(None, "--user-id", help="User scope."),
+    tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags."),
+    db_path: Path | None = typer.Option(None, "--db-path", help="SQLite DB path."),
+) -> None:
+    """Add a prompt memory and show quality coaching."""
+
+    memory = MemoryStore(db_path=db_path)
+    item = memory.add_prompt(prompt, user_id=user_id, tags=_parse_tags(tags))
+    console.print(
+        Panel.fit(
+            f"Memory ID: {item.id}\nPrompt Score: {item.prompt_score}\nRisk Level: {item.prompt_risk_level}",
+            title="Prompt stored",
+        )
+    )
+    for comment in item.prompt_comments:
+        console.print(f"[yellow]Comment:[/yellow] {comment}")
+    for suggestion in item.prompt_suggestions:
+        console.print(f"[green]Suggestion:[/green] {suggestion}")
+    memory.close()
+
+
+@memory_app.command("search")
+def memory_search(
+    query: str,
+    limit: int = typer.Option(10, "--limit", "-l"),
+    user_id: str | None = typer.Option(None, "--user-id"),
+    memory_type: str | None = typer.Option(None, "--type"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Search local memories."""
+
+    memory = MemoryStore(db_path=db_path)
+    results = memory.search(query, user_id=user_id, memory_type=memory_type, limit=limit)
+    table = Table(title="Memory Search Results")
+    table.add_column("Score")
+    table.add_column("Type")
+    table.add_column("Content")
+    table.add_column("Tags")
+    for result in results:
+        table.add_row(
+            f"{result.score:.2f}",
+            result.item.memory_type,
+            _truncate(result.item.content),
+            ", ".join(result.item.tags),
+        )
+    console.print(table)
+    memory.close()
+
+
+@memory_app.command("list")
+def memory_list(
+    limit: int = typer.Option(20, "--limit", "-l"),
+    user_id: str | None = typer.Option(None, "--user-id"),
+    memory_type: str | None = typer.Option(None, "--type"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """List local memories."""
+
+    memory = MemoryStore(db_path=db_path)
+    table = Table(title="Memories")
+    table.add_column("ID")
+    table.add_column("Type")
+    table.add_column("Content")
+    table.add_column("Created")
+    for item in memory.list(user_id=user_id, memory_type=memory_type, limit=limit):
+        table.add_row(
+            item.id, item.memory_type, _truncate(item.content), item.created_at.isoformat()
+        )
+    console.print(table)
+    memory.close()
+
+
+@memory_app.command("show")
+def memory_show(memory_id: str, db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Show one memory."""
+
+    memory = MemoryStore(db_path=db_path)
+    item = memory.get(memory_id)
+    if item is None:
+        console.print("[red]Memory not found[/red]")
+        raise typer.Exit(code=1)
+    console.print_json(item.model_dump_json())
+    memory.close()
+
+
+@memory_app.command("delete")
+def memory_delete(memory_id: str, db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Delete one memory."""
+
+    memory = MemoryStore(db_path=db_path)
+    deleted = memory.delete(memory_id)
+    console.print("[green]Deleted[/green]" if deleted else "[yellow]Memory not found[/yellow]")
+    memory.close()
+
+
+@memory_app.command("stats")
+def memory_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Show memory statistics."""
+
+    memory = MemoryStore(db_path=db_path)
+    console.print_json(memory.stats().model_dump_json())
+    memory.close()
+
+
+@memory_app.command("clear")
+def memory_clear(
+    yes: bool = typer.Option(False, "--yes", help="Confirm clearing all memories."),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Clear all memories."""
+
+    memory = MemoryStore(db_path=db_path)
+    count = memory.clear(confirm=yes)
+    console.print(f"[green]Cleared {count} memories[/green]")
+    memory.close()
+
+
+@files_app.command("add")
+def files_add(
+    path: Path,
+    recursive: bool = typer.Option(False, "--recursive", "-r"),
+    tags: str | None = typer.Option(None, "--tags"),
+    user_id: str | None = typer.Option(None, "--user-id"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Add a file or folder to file memory."""
+
+    files = FileMemory(db_path=db_path)
+    items = (
+        files.add_folder(path, recursive=recursive, tags=_parse_tags(tags), user_id=user_id)
+        if path.is_dir()
+        else files.add_file(path, tags=_parse_tags(tags), user_id=user_id)
+    )
+    console.print(f"[green]Indexed {len(items)} chunks[/green]")
+
+
+@files_app.command("search")
+def files_search(
+    query: str,
+    limit: int = typer.Option(10, "--limit", "-l"),
+    user_id: str | None = typer.Option(None, "--user-id"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Search indexed file memory."""
+
+    files = FileMemory(db_path=db_path)
+    table = Table(title="File Search Results")
+    table.add_column("Score")
+    table.add_column("File")
+    table.add_column("Content")
+    for result in files.search(query, limit=limit, user_id=user_id):
+        table.add_row(
+            f"{result.score:.2f}",
+            str(result.item.metadata.get("file_name", "")),
+            _truncate(result.item.content),
+        )
+    console.print(table)
+
+
+@files_app.command("list")
+def files_list(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """List indexed files."""
+
+    files = FileMemory(db_path=db_path)
+    table = Table(title="Indexed Files")
+    table.add_column("File")
+    table.add_column("Type")
+    table.add_column("Chunks")
+    table.add_column("Path")
+    for item in files.list_files():
+        table.add_row(
+            str(item.get("file_name")),
+            str(item.get("file_type")),
+            str(item.get("total_chunks")),
+            str(item.get("file_path")),
+        )
+    console.print(table)
+
+
+@files_app.command("stats")
+def files_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Show file memory stats."""
+
+    files = FileMemory(db_path=db_path)
+    console.print_json(data=files.stats())
+
+
+@trace_app.command("list")
+def trace_list(
+    limit: int = typer.Option(20, "--limit", "-l"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """List local traces."""
+
+    tracer = LocalTracer(db_path=db_path)
+    table = Table(title="Traces")
+    table.add_column("ID")
+    table.add_column("Name")
+    table.add_column("Status")
+    table.add_column("Cost")
+    for trace in tracer.list(limit=limit):
+        table.add_row(trace.id, trace.name, trace.status, f"${trace.estimated_cost:.6f}")
+    console.print(table)
+    tracer.close()
+
+
+@trace_app.command("show")
+def trace_show(trace_id: str, db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Show one trace."""
+
+    tracer = LocalTracer(db_path=db_path)
+    trace = tracer.get(trace_id)
+    if trace is None:
+        console.print("[red]Trace not found[/red]")
+        raise typer.Exit(code=1)
+    console.print_json(trace.model_dump_json())
+    tracer.close()
+
+
+@trace_app.command("stats")
+def trace_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Show trace stats."""
+
+    tracer = LocalTracer(db_path=db_path)
+    console.print_json(tracer.stats().model_dump_json())
+    tracer.close()
+
+
+@trace_app.command("clear")
+def trace_clear(
+    yes: bool = typer.Option(False, "--yes", help="Confirm clearing all traces."),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Clear local traces."""
+
+    tracer = LocalTracer(db_path=db_path)
+    count = tracer.clear(confirm=yes)
+    console.print(f"[green]Cleared {count} traces[/green]")
+    tracer.close()
+
+
+@dashboard_app.command("generate")
+def dashboard_generate(
+    output: Path | None = typer.Option(None, "--output", "-o"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Generate the static local dashboard."""
+
+    path = generate_dashboard(output_path=output, db_path=db_path)
+    console.print(f"Dashboard generated: {path}")
+
+
+@dashboard_app.command("open")
+def dashboard_open(
+    output: Path | None = typer.Option(None, "--output", "-o"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Generate and open the static local dashboard."""
+
+    path = generate_dashboard(output_path=output, db_path=db_path)
+    webbrowser.open(path.resolve().as_uri())
+    console.print(f"Dashboard opened: {path}")
 
 
 if __name__ == "__main__":

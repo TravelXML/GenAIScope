@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from genaiscope.core.logging import get_logger
 
@@ -23,7 +23,7 @@ class CostAnalyzer:
             "gemini-pro": {"input": 0.0005, "output": 0.0015},
         }
 
-    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> Dict[str, float]:
+    def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> dict[str, float]:
         """Estimate API cost."""
         if model not in self.pricing:
             logger.warning(f"Unknown model {model}, returning zero cost")
@@ -53,7 +53,7 @@ class PIIDetector:
             "ipv4": r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b",
         }
 
-    def detect(self, text: str) -> Dict[str, List[str]]:
+    def detect(self, text: str) -> dict[str, list[str]]:
         """Detect PII in text."""
         results = {}
 
@@ -78,7 +78,7 @@ class HallucinationDetector:
     def __init__(self) -> None:
         """Initialize hallucination detector."""
 
-    def detect(self, context: str, response: str) -> Dict[str, Any]:
+    def detect(self, context: str, response: str) -> dict[str, Any]:
         """Detect potential hallucinations."""
         # Simple heuristic: check for contradictions
         context_lower = context.lower()
@@ -90,8 +90,6 @@ class HallucinationDetector:
             indicator in response_lower for indicator in unreliability_indicators
         )
 
-        # Check for facts not in context
-        context_sentences = set(context_lower.split("."))
         response_sentences = response_lower.split(".")
 
         unsupported_count = 0
@@ -119,7 +117,7 @@ class SafetyAnalyzer:
             "misinformation": r"(definitely|certainly|absolutely) (?!correct)",
         }
 
-    def analyze(self, text: str) -> Dict[str, List[str]]:
+    def analyze(self, text: str) -> dict[str, list[str]]:
         """Analyze text for safety issues."""
         issues = {}
 
@@ -135,7 +133,7 @@ class StructuredOutputValidator:
     """Validator for structured outputs."""
 
     @staticmethod
-    def validate_json(text: str) -> Dict[str, Any]:
+    def validate_json(text: str) -> dict[str, Any]:
         """Validate JSON output."""
         try:
             data = json.loads(text)
@@ -144,21 +142,23 @@ class StructuredOutputValidator:
             return {"valid": False, "error": str(e)}
 
     @staticmethod
-    def validate_xml(text: str) -> Dict[str, Any]:
+    def validate_xml(text: str) -> dict[str, Any]:
         """Validate XML output."""
         try:
             import xml.etree.ElementTree as ET
+
             ET.fromstring(text)
             return {"valid": True}
         except Exception as e:
             return {"valid": False, "error": str(e)}
 
     @staticmethod
-    def validate_csv(text: str) -> Dict[str, Any]:
+    def validate_csv(text: str) -> dict[str, Any]:
         """Validate CSV output."""
         try:
             import csv
             import io
+
             csv.reader(io.StringIO(text))
             return {"valid": True}
         except Exception as e:

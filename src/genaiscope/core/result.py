@@ -1,7 +1,7 @@
 """Result type for operations."""
 
 from enum import Enum
-from typing import Any, Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -21,9 +21,9 @@ class Result(Generic[T]):
     def __init__(
         self,
         status: ResultStatus,
-        data: Optional[T] = None,
-        error: Optional[str] = None,
-        message: Optional[str] = None,
+        data: T | None = None,
+        error: str | None = None,
+        message: str | None = None,
     ) -> None:
         """Initialize a result."""
         self.status = status

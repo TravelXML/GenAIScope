@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,7 @@ class ScopeConfig(BaseModel):
     """Configuration for GenAIScope."""
 
     provider: Provider = Provider.OPENAI
-    api_key: Optional[str] = None
+    api_key: str | None = None
     model: str = "gpt-4"
     max_tokens: int = 2048
     temperature: float = 0.7
@@ -40,7 +40,7 @@ class EvaluationResult(BaseModel):
     score: float = Field(ge=0.0, le=1.0)
     label: str
     reasoning: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class InspectionReport(BaseModel):
@@ -50,13 +50,13 @@ class InspectionReport(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     title: str
     description: str
-    input_text: Optional[str] = None
-    output_text: Optional[str] = None
-    evaluations: List[EvaluationResult] = Field(default_factory=list)
-    metrics: Dict[str, float] = Field(default_factory=dict)
-    warnings: List[str] = Field(default_factory=list)
-    errors: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    input_text: str | None = None
+    output_text: str | None = None
+    evaluations: list[EvaluationResult] = Field(default_factory=list)
+    metrics: dict[str, float] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def summary(self) -> str:
         """Get a text summary of the report."""

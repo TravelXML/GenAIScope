@@ -1,6 +1,5 @@
 """Tests for inspection."""
 
-import pytest
 from genaiscope.inspect import Inspector
 
 
@@ -16,7 +15,7 @@ def test_inspect_prompt():
     """Test prompt inspection."""
     inspector = Inspector()
     report = inspector.inspect_prompt("What is the capital of France?")
-    
+
     assert report.title == "Prompt Inspection"
     assert report.input_text == "What is the capital of France?"
     assert len(report.evaluations) > 0
@@ -27,7 +26,7 @@ def test_inspect_output():
     """Test output inspection."""
     inspector = Inspector()
     report = inspector.inspect_output('{"name": "test"}', expected_format="json")
-    
+
     assert report.title == "Output Inspection"
     assert len(report.evaluations) > 0
 
@@ -38,8 +37,8 @@ def test_inspect_rag():
     report = inspector.inspect_rag(
         query="What is AI?",
         context="Artificial Intelligence is...",
-        response="AI is Artificial Intelligence."
+        response="AI is Artificial Intelligence.",
     )
-    
+
     assert report.title == "RAG Inspection"
     assert len(report.evaluations) > 0

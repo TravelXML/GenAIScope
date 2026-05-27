@@ -1,6 +1,5 @@
 """Tests for core models."""
 
-import pytest
 from genaiscope.core.models import EvaluationResult, InspectionReport, Provider, ScopeConfig
 
 
@@ -32,7 +31,7 @@ def test_inspection_report():
     )
     assert report.id == "test-1"
     assert report.title == "Test Report"
-    
+
     summary = report.summary()
     assert "Test Report" in summary
     assert "A test report" in summary

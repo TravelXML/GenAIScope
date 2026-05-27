@@ -1,12 +1,10 @@
 """Configuration management."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
-
-from genaiscope.core.errors import ConfigurationError
 
 
 class Config(BaseModel):
@@ -14,10 +12,10 @@ class Config(BaseModel):
 
     # Provider settings
     provider: str = os.getenv("GENAISCOPE_PROVIDER", "openai")
-    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
-    anthropic_api_key: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
-    google_api_key: Optional[str] = os.getenv("GOOGLE_API_KEY")
-    
+    openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
+    anthropic_api_key: str | None = os.getenv("ANTHROPIC_API_KEY")
+    google_api_key: str | None = os.getenv("GOOGLE_API_KEY")
+
     # Model settings
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4")
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-3-opus-20240229")
@@ -31,7 +29,7 @@ class Config(BaseModel):
 
     # Logging settings
     log_level: str = os.getenv("GENAISCOPE_LOG_LEVEL", "INFO")
-    log_file: Optional[str] = os.getenv("GENAISCOPE_LOG_FILE")
+    log_file: str | None = os.getenv("GENAISCOPE_LOG_FILE")
 
     class Config:
         """Pydantic config."""
@@ -44,13 +42,13 @@ class Config(BaseModel):
         load_dotenv()
         return cls()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return self.model_dump(exclude_none=True)
 
 
 # Global config instance
-_config: Optional[Config] = None
+_config: Config | None = None
 
 
 def get_config() -> Config:

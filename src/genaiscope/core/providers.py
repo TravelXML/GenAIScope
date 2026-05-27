@@ -1,10 +1,9 @@
 """Provider interfaces and implementations."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
-import httpx
 
 from genaiscope.core.errors import ProviderError
 
@@ -12,7 +11,7 @@ from genaiscope.core.errors import ProviderError
 class BaseProvider(ABC):
     """Base class for all providers."""
 
-    def __init__(self, api_key: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(self, api_key: str | None = None, **kwargs: Any) -> None:
         """Initialize provider."""
         self.api_key = api_key
         self.kwargs = kwargs
@@ -31,7 +30,7 @@ class BaseProvider(ABC):
 class OpenAIProvider(BaseProvider):
     """OpenAI provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4", **kwargs: Any) -> None:
+    def __init__(self, api_key: str | None = None, model: str = "gpt-4", **kwargs: Any) -> None:
         """Initialize OpenAI provider."""
         super().__init__(api_key, **kwargs)
         self.model = model
@@ -66,14 +65,14 @@ class OpenAIProvider(BaseProvider):
                     result = await response.json()
                     return result["choices"][0]["message"]["content"]
         except aiohttp.ClientError as e:
-            raise ProviderError(f"OpenAI API call failed: {e}")
+            raise ProviderError(f"OpenAI API call failed: {e}") from e
 
 
 class AnthropicProvider(BaseProvider):
     """Anthropic provider implementation."""
 
     def __init__(
-        self, api_key: Optional[str] = None, model: str = "claude-3-opus-20240229", **kwargs: Any
+        self, api_key: str | None = None, model: str = "claude-3-opus-20240229", **kwargs: Any
     ) -> None:
         """Initialize Anthropic provider."""
         super().__init__(api_key, **kwargs)
@@ -109,13 +108,15 @@ class AnthropicProvider(BaseProvider):
                     result = await response.json()
                     return result["content"][0]["text"]
         except aiohttp.ClientError as e:
-            raise ProviderError(f"Anthropic API call failed: {e}")
+            raise ProviderError(f"Anthropic API call failed: {e}") from e
 
 
 class GoogleProvider(BaseProvider):
     """Google GenAI provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-pro", **kwargs: Any) -> None:
+    def __init__(
+        self, api_key: str | None = None, model: str = "gemini-pro", **kwargs: Any
+    ) -> None:
         """Initialize Google provider."""
         super().__init__(api_key, **kwargs)
         self.model = model
@@ -148,13 +149,13 @@ class GoogleProvider(BaseProvider):
                     result = await response.json()
                     return result["candidates"][0]["content"]["parts"][0]["text"]
         except aiohttp.ClientError as e:
-            raise ProviderError(f"Google API call failed: {e}")
+            raise ProviderError(f"Google API call failed: {e}") from e
 
 
 class LocalProvider(BaseProvider):
     """Local/custom provider for testing and offline use."""
 
-    def __init__(self, model_callable: Optional[Any] = None, **kwargs: Any) -> None:
+    def __init__(self, model_callable: Any | None = None, **kwargs: Any) -> None:
         """Initialize local provider."""
         super().__init__(**kwargs)
         self.model_callable = model_callable
@@ -172,9 +173,9 @@ class LocalProvider(BaseProvider):
         raise ProviderError("Model callable is not callable")
 
 
-def get_provider(provider_type: str, api_key: Optional[str] = None, **kwargs: Any) -> BaseProvider:
+def get_provider(provider_type: str, api_key: str | None = None, **kwargs: Any) -> BaseProvider:
     """Get a provider instance by type."""
-    providers: Dict[str, type] = {
+    providers: dict[str, type] = {
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,
         "google": GoogleProvider,

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genaiscope"
-version = "0.1.0"
+version = "0.2.91"
 description = "Open-source Python toolkit to inspect, test, secure, optimize, and operationalize GenAI applications before production."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -87,7 +87,7 @@ dev = [
     "ruff>=0.4.0,<1.0.0",
     "mypy>=1.8.0,<2.0.0",
     "build>=1.2.0,<2.0.0",
-    "twine>=5.0.0,<6.0.0"
+    "twine>=6.2.0,<7.0.0"
 ]
 
 docs = [
@@ -134,7 +134,9 @@ select = [
     "RUF"
 ]
 ignore = [
-    "E501"
+    "B008",
+    "E501",
+    "UP042",
 ]
 
 [tool.ruff.lint.per-file-ignores]
