@@ -1,6 +1,6 @@
 # GenAIScope
 
-**Local-first AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks.**
+**Production-ready AI memory, observability, evaluation, safety, and optimization toolkit for GenAI applications.**
 
 GenAIScope is a local-first Python toolkit for AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks. It helps developers, CTOs, and AI engineers identify and fix issues in GenAI applications before production.
 
@@ -13,6 +13,9 @@ GenAIScope is a local-first Python toolkit for AI memory, file intelligence, pro
 - **Modular design** - Mix and match what you need
 - **Production-ready** - Type-safe, async-capable, fully tested
 - **SQLite local memory** - Store user preferences, project facts, prompts, and document chunks
+- **Optional Redis backend** - Move production memory and traces to Redis without changing APIs
+- **Scoped memory and TTL** - Keep user, project, workspace, agent, and session context tidy
+- **Semantic cache foundation** - Reuse responses with deterministic hybrid text similarity
 - **Prompt coach** - Get local comments and improvement suggestions for weak prompts
 - **Static dashboard** - Generate a local HTML dashboard with memory, file, prompt, trace, and cost insights
 
@@ -65,6 +68,47 @@ memory.add("User prefers short CTO-level answers.", memory_type="preference")
 results = memory.search("answer style")
 print(results)
 ```
+
+### Production Memory
+
+```python
+from genaiscope.memory import MemoryStore
+
+memory = MemoryStore(backend="redis", redis_url="redis://localhost:6379", namespace="memovo")
+memory.remember(
+    "User prefers concise CTO-level answers.",
+    memory_type="preference",
+    user_id="sapan",
+    project_id="memovo",
+    importance=8,
+)
+memory.remember("Temporary context", memory_type="temporary", ttl_days=3)
+```
+
+### Backup And Dedupe
+
+```bash
+genaiscope memory duplicates
+genaiscope memory dedupe --apply --strategy keep_newest
+genaiscope memory export memories.json
+genaiscope memory import memories.json
+```
+
+### Semantic Cache
+
+```python
+from genaiscope.cache import SemanticCache
+
+cache = SemanticCache(memory_store=memory)
+cache.set(prompt="Summarize refund policy", response="Refund policy summary...", user_id="sapan")
+hit = cache.get(prompt="Can you summarize the refund policy?", user_id="sapan")
+```
+
+## Memovo Integration
+
+Memovo can use GenAIScope as a local SQLite or production Redis backend for user memory,
+project memory, file memory, prompt history, conversation context, agent traces, semantic
+cache, dashboard analytics, and a future MCP access layer.
 
 ### Prompt Coach
 
@@ -178,18 +222,16 @@ genaiscope trace stats
 genaiscope dashboard generate
 ```
 
-## v0.2.91 Roadmap Notes
+## v0.3.0 Roadmap Notes
 
 Known limitations:
 
-- v0.2.91 uses local SQLite only
 - Search uses local keyword/hybrid scoring, not real embeddings
 - PDF/DOCX ingestion is not included yet
 - Dashboard output is static HTML
 
 Planned for a later release:
 
-- Redis backend
 - Real vector DB support
 - Semantic cache
 - MCP memory server

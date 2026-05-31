@@ -1,31 +1,41 @@
-"""Error definitions for GenAIScope."""
+"""Public GenAIScope exceptions."""
 
 
 class GenAIScopeError(Exception):
-    """Base exception for all GenAIScope errors."""
-
-    pass
+    """Base package error."""
 
 
 class ConfigurationError(GenAIScopeError):
     """Raised when configuration is invalid."""
 
-    pass
-
 
 class ProviderError(GenAIScopeError):
     """Raised when provider operations fail."""
-
-    pass
 
 
 class ValidationError(GenAIScopeError):
     """Raised when validation fails."""
 
-    pass
-
 
 class EvaluationError(GenAIScopeError):
     """Raised when evaluation fails."""
 
-    pass
+
+class InvalidBackendError(GenAIScopeError):
+    """Raised for unsupported storage backends."""
+
+
+class BackendNotAvailableError(GenAIScopeError):
+    """Raised when a requested backend cannot be used."""
+
+
+class RedisDependencyMissingError(BackendNotAvailableError):
+    """Raised when redis-py is not installed."""
+
+
+class RedisConnectionError(BackendNotAvailableError):
+    """Raised when Redis cannot be reached."""
+
+
+class MemoryNotFoundError(GenAIScopeError):
+    """Raised when a requested memory does not exist."""

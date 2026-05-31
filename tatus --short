@@ -1,0 +1,21 @@
+ CHANGELOG.md                                |   16 [32m+[m
+ README.md                                   |   50 [32m+[m[31m-[m
+ docs/memory.md                              |   14 [32m+[m[31m-[m
+ docs/tracing.md                             |    6 [32m+[m
+ genaiscope_complete_colab_tests.ipynb       | 3156 [31m--------------------------------------------------[m
+ mkdocs.yml                                  |    3 [32m+[m
+ pyproject.toml                              |   21 [32m+[m[31m-[m
+ src/genaiscope/__init__.py                  |    2 [32m+[m[31m-[m
+ src/genaiscope/cli/main.py                  |  162 [32m++[m[31m-[m
+ src/genaiscope/core/errors.py               |   32 [32m+[m[31m-[m
+ src/genaiscope/dashboard/html.py            |   18 [32m+[m[31m-[m
+ src/genaiscope/dashboard/recommendations.py |    4 [32m+[m
+ src/genaiscope/memory/__init__.py           |   14 [32m+[m[31m-[m
+ src/genaiscope/memory/models.py             |   14 [32m+[m[31m-[m
+ src/genaiscope/memory/search.py             |   18 [32m+[m
+ src/genaiscope/memory/store.py              |  277 [32m+[m[31m----[m
+ src/genaiscope/tracing/__init__.py          |    4 [32m+[m[31m-[m
+ src/genaiscope/tracing/store.py             |   12 [32m+[m[31m-[m
+ src/genaiscope/tracing/tracer.py            |    6 [32m+[m[31m-[m
+ src/genaiscope/version.py                   |    2 [32m+[m[31m-[m
+ 20 files changed, 356 insertions(+), 3475 deletions(-)

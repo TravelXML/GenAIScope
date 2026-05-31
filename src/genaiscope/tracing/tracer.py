@@ -6,8 +6,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from genaiscope.tracing.factory import create_trace_store
 from genaiscope.tracing.models import TraceItem, TraceStats
-from genaiscope.tracing.store import TraceStore
 
 
 class TraceSpan:
@@ -69,8 +69,8 @@ class TraceSpan:
 class LocalTracer:
     """Lightweight local trace logger."""
 
-    def __init__(self, db_path: str | Path | None = None):
-        self.store = TraceStore(db_path=db_path)
+    def __init__(self, db_path: str | Path | None = None, backend: str = "sqlite", redis_url: str = "redis://localhost:6379", namespace: str = "genaiscope"):
+        self.store = create_trace_store(backend=backend, db_path=db_path, redis_url=redis_url, namespace=namespace)
 
     def log(self, *args: Any, **kwargs: Any) -> TraceItem:
         """Log one trace."""

@@ -8,3 +8,9 @@ from genaiscope.tracing import LocalTracer
 tracer = LocalTracer()
 tracer.log(name="demo", input_text="hello", output_text="hi", model="local")
 ```
+
+For production Redis traces:
+
+```python
+tracer = LocalTracer(backend="redis", redis_url="redis://localhost:6379", namespace="memovo")
+```

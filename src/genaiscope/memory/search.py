@@ -61,6 +61,8 @@ def search_memories(
     *,
     limit: int = 10,
     mode: str = "hybrid",
+    requested_scopes: dict[str, str | None] | None = None,
+    memory_type: str | None = None,
 ) -> list[MemorySearchResult]:
     """Search memory items and return ranked results."""
 
@@ -76,13 +78,29 @@ def search_memories(
         if mode == "hybrid":
             age_days = max((now - item.created_at).days, 0)
             score += max(0.0, 0.25 - min(age_days, 30) / 120)
+            score += max(item.importance - 5, 0) * 0.05
+            if memory_type and item.memory_type == memory_type:
+                score += 0.15
+            matched_scopes = [
+                name
+                for name, value in (requested_scopes or {}).items()
+                if value is not None and getattr(item, name) == value
+            ]
+            score += len(matched_scopes) * 0.1
+        else:
+            matched_scopes = []
         match_type = "exact" if query.lower() in item.content.lower() else "keyword"
+        reasons = [f"Matched query terms: {', '.join(matched) or 'phrase'}."]
+        boosts = matched_scopes + (["importance"] if item.importance > 5 else [])
+        if boosts:
+            reasons.append(f"Boosted by {', '.join(boosts)}.")
         results.append(
             MemorySearchResult(
                 item=item,
                 score=round(score, 4),
                 match_type=match_type,
                 matched_terms=matched,
+                ranking_reason=" ".join(reasons),
             )
         )
 

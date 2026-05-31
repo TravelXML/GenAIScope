@@ -17,6 +17,9 @@ nav:
   - Quick Start: quickstart.md
   - Installation: installation.md
   - Concepts: concepts.md
+  - Production Memory: memory.md
+  - Tracing: tracing.md
+  - Semantic Cache: semantic-cache.md
   - CLI Reference: cli.md
   - API Reference: api-reference.md
   - Recipes:

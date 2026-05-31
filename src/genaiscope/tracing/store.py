@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from genaiscope.memory.namespaces import normalize_namespace
 from genaiscope.memory.utils import (
     default_db_path,
     ensure_parent,
@@ -16,14 +17,18 @@ from genaiscope.memory.utils import (
     parse_datetime,
     utc_now,
 )
+from genaiscope.tracing.base import BaseTraceStore
 from genaiscope.tracing.models import TraceItem, TraceStats
 
 
-class TraceStore:
+class SQLiteTraceStore(BaseTraceStore):
     """SQLite-backed trace store."""
 
-    def __init__(self, db_path: str | Path | None = None):
+    backend = "sqlite"
+
+    def __init__(self, db_path: str | Path | None = None, namespace: str = "genaiscope", **_kwargs: Any):
         self.db_path = Path(db_path) if db_path else default_db_path()
+        self.namespace = normalize_namespace(namespace)
         ensure_parent(self.db_path)
         self.connection = sqlite3.connect(self.db_path)
         self.connection.row_factory = sqlite3.Row
@@ -181,3 +186,6 @@ class TraceStore:
             created_at=parse_datetime(row["created_at"]) or utc_now(),
             updated_at=parse_datetime(row["updated_at"]) or utc_now(),
         )
+
+
+TraceStore = SQLiteTraceStore

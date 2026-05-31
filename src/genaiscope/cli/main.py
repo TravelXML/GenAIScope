@@ -14,12 +14,19 @@ from genaiscope.analyzers import (
     PIIDetector,
     SafetyAnalyzer,
 )
+from genaiscope.cache import SemanticCache
 from genaiscope.core.config import get_config
 from genaiscope.core.logging import get_logger
 from genaiscope.dashboard import generate_dashboard
 from genaiscope.files import FileMemory
 from genaiscope.inspect import Inspector
-from genaiscope.memory import MemoryStore
+from genaiscope.memory import (
+    MemoryStore,
+    dedupe_memories,
+    export_memories,
+    find_duplicates,
+    import_memories,
+)
 from genaiscope.tracing import LocalTracer
 
 logger = get_logger(__name__)
@@ -33,11 +40,13 @@ memory_app = typer.Typer(help="Local memory commands.", no_args_is_help=True)
 files_app = typer.Typer(help="Local file memory commands.", no_args_is_help=True)
 trace_app = typer.Typer(help="Local trace commands.", no_args_is_help=True)
 dashboard_app = typer.Typer(help="Local dashboard commands.", no_args_is_help=True)
+cache_app = typer.Typer(help="Semantic cache commands.", no_args_is_help=True)
 
 app.add_typer(memory_app, name="memory")
 app.add_typer(files_app, name="files")
 app.add_typer(trace_app, name="trace")
 app.add_typer(dashboard_app, name="dashboard")
+app.add_typer(cache_app, name="cache")
 
 
 def _parse_tags(tags: str | None) -> list[str]:
@@ -196,13 +205,22 @@ def memory_add(
     content: str,
     memory_type: str = typer.Option("general", "--type", help="Memory type."),
     user_id: str | None = typer.Option(None, "--user-id", help="User scope."),
+    workspace_id: str | None = typer.Option(None, "--workspace-id"),
+    project_id: str | None = typer.Option(None, "--project-id"),
+    agent_id: str | None = typer.Option(None, "--agent-id"),
+    session_id: str | None = typer.Option(None, "--session-id"),
+    importance: int = typer.Option(5, "--importance"),
+    ttl_days: int | None = typer.Option(None, "--ttl-days"),
     tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags."),
     db_path: Path | None = typer.Option(None, "--db-path", help="SQLite DB path."),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
 ) -> None:
     """Add a local memory."""
 
-    memory = MemoryStore(db_path=db_path)
-    item = memory.add(content, memory_type=memory_type, user_id=user_id, tags=_parse_tags(tags))
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    item = memory.add(content, memory_type=memory_type, user_id=user_id, workspace_id=workspace_id, project_id=project_id, agent_id=agent_id, session_id=session_id, importance=importance, ttl_days=ttl_days, tags=_parse_tags(tags))
     console.print(
         Panel.fit(f"Memory ID: {item.id}\nType: {item.memory_type}", title="Memory added")
     )
@@ -215,10 +233,13 @@ def memory_add_prompt(
     user_id: str | None = typer.Option(None, "--user-id", help="User scope."),
     tags: str | None = typer.Option(None, "--tags", help="Comma-separated tags."),
     db_path: Path | None = typer.Option(None, "--db-path", help="SQLite DB path."),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
 ) -> None:
     """Add a prompt memory and show quality coaching."""
 
-    memory = MemoryStore(db_path=db_path)
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
     item = memory.add_prompt(prompt, user_id=user_id, tags=_parse_tags(tags))
     console.print(
         Panel.fit(
@@ -238,13 +259,18 @@ def memory_search(
     query: str,
     limit: int = typer.Option(10, "--limit", "-l"),
     user_id: str | None = typer.Option(None, "--user-id"),
+    workspace_id: str | None = typer.Option(None, "--workspace-id"),
+    project_id: str | None = typer.Option(None, "--project-id"),
     memory_type: str | None = typer.Option(None, "--type"),
     db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
 ) -> None:
     """Search local memories."""
 
-    memory = MemoryStore(db_path=db_path)
-    results = memory.search(query, user_id=user_id, memory_type=memory_type, limit=limit)
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    results = memory.search(query, user_id=user_id, workspace_id=workspace_id, project_id=project_id, memory_type=memory_type, limit=limit)
     table = Table(title="Memory Search Results")
     table.add_column("Score")
     table.add_column("Type")
@@ -265,18 +291,24 @@ def memory_search(
 def memory_list(
     limit: int = typer.Option(20, "--limit", "-l"),
     user_id: str | None = typer.Option(None, "--user-id"),
+    project_id: str | None = typer.Option(None, "--project-id"),
+    workspace_id: str | None = typer.Option(None, "--workspace-id"),
+    include_expired: bool = typer.Option(False, "--include-expired"),
     memory_type: str | None = typer.Option(None, "--type"),
     db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
 ) -> None:
     """List local memories."""
 
-    memory = MemoryStore(db_path=db_path)
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
     table = Table(title="Memories")
     table.add_column("ID")
     table.add_column("Type")
     table.add_column("Content")
     table.add_column("Created")
-    for item in memory.list(user_id=user_id, memory_type=memory_type, limit=limit):
+    for item in memory.list(user_id=user_id, project_id=project_id, workspace_id=workspace_id, memory_type=memory_type, include_expired=include_expired, limit=limit):
         table.add_row(
             item.id, item.memory_type, _truncate(item.content), item.created_at.isoformat()
         )
@@ -308,10 +340,15 @@ def memory_delete(memory_id: str, db_path: Path | None = typer.Option(None, "--d
 
 
 @memory_app.command("stats")
-def memory_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+def memory_stats(
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
     """Show memory statistics."""
 
-    memory = MemoryStore(db_path=db_path)
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
     console.print_json(memory.stats().model_dump_json())
     memory.close()
 
@@ -326,6 +363,84 @@ def memory_clear(
     memory = MemoryStore(db_path=db_path)
     count = memory.clear(confirm=yes)
     console.print(f"[green]Cleared {count} memories[/green]")
+    memory.close()
+
+
+@memory_app.command("cleanup-expired")
+def memory_cleanup_expired(
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Delete expired memories."""
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    console.print(f"[green]Cleaned {memory.cleanup_expired()} expired memories[/green]")
+    memory.close()
+
+
+@memory_app.command("duplicates")
+def memory_duplicates(
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Show duplicate memory groups."""
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    groups = find_duplicates(memory)
+    console.print_json(data={"duplicate_groups": [[item.id for item in group] for group in groups]})
+    memory.close()
+
+
+@memory_app.command("dedupe")
+def memory_dedupe(
+    apply: bool = typer.Option(False, "--apply"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    strategy: str = typer.Option("keep_newest", "--strategy"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Preview or apply duplicate cleanup."""
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    console.print_json(data=dedupe_memories(memory, strategy=strategy, dry_run=dry_run or not apply))
+    memory.close()
+
+
+@memory_app.command("export")
+def memory_export(
+    output: Path,
+    format: str = typer.Option("json", "--format"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Export memories for backup or migration."""
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    console.print(f"[green]Exported {export_memories(memory, output, format=format)} memories[/green]")
+    memory.close()
+
+
+@memory_app.command("import")
+def memory_import(
+    input: Path,
+    merge_strategy: str = typer.Option("skip_existing", "--merge-strategy"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Import memories from JSON or JSONL."""
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    console.print(f"[green]Imported {import_memories(memory, input, merge_strategy=merge_strategy)} memories[/green]")
     memory.close()
 
 
@@ -403,10 +518,12 @@ def files_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
 def trace_list(
     limit: int = typer.Option(20, "--limit", "-l"),
     db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
 ) -> None:
     """List local traces."""
 
-    tracer = LocalTracer(db_path=db_path)
+    tracer = LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url)
     table = Table(title="Traces")
     table.add_column("ID")
     table.add_column("Name")
@@ -432,10 +549,10 @@ def trace_show(trace_id: str, db_path: Path | None = typer.Option(None, "--db-pa
 
 
 @trace_app.command("stats")
-def trace_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+def trace_stats(db_path: Path | None = typer.Option(None, "--db-path"), backend: str = typer.Option("sqlite", "--backend"), redis_url: str = typer.Option("redis://localhost:6379", "--redis-url")) -> None:
     """Show trace stats."""
 
-    tracer = LocalTracer(db_path=db_path)
+    tracer = LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url)
     console.print_json(tracer.stats().model_dump_json())
     tracer.close()
 
@@ -457,10 +574,13 @@ def trace_clear(
 def dashboard_generate(
     output: Path | None = typer.Option(None, "--output", "-o"),
     db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
 ) -> None:
     """Generate the static local dashboard."""
 
-    path = generate_dashboard(output_path=output, db_path=db_path)
+    path = generate_dashboard(output_path=output, db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
     console.print(f"Dashboard generated: {path}")
 
 
@@ -474,6 +594,20 @@ def dashboard_open(
     path = generate_dashboard(output_path=output, db_path=db_path)
     webbrowser.open(path.resolve().as_uri())
     console.print(f"Dashboard opened: {path}")
+
+
+@cache_app.command("stats")
+def cache_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Show semantic cache statistics."""
+
+    console.print_json(SemanticCache(db_path=db_path).stats().model_dump_json())
+
+
+@cache_app.command("clear")
+def cache_clear(yes: bool = typer.Option(False, "--yes"), db_path: Path | None = typer.Option(None, "--db-path")) -> None:
+    """Clear semantic cache entries."""
+
+    console.print(f"[green]Cleared {SemanticCache(db_path=db_path).clear(confirm=yes)} cache entries[/green]")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from genaiscope import __version__
 from genaiscope.dashboard.recommendations import generate_recommendations
 from genaiscope.files import FileMemory
 from genaiscope.memory import MemoryStore
+from genaiscope.memory.dedupe import find_duplicates
 from genaiscope.memory.utils import default_db_path, iso_now
 from genaiscope.tracing import LocalTracer
 
@@ -37,14 +38,17 @@ def _dict_rows(data: dict[str, Any]) -> str:
 def generate_dashboard(
     output_path: str | Path | None = None,
     db_path: str | Path | None = None,
+    backend: str = "sqlite",
+    redis_url: str = "redis://localhost:6379",
+    namespace: str = "genaiscope",
 ) -> Path:
     """Generate a self-contained local HTML dashboard."""
 
     output = Path(output_path) if output_path else _default_output_path()
     output.parent.mkdir(parents=True, exist_ok=True)
     db = Path(db_path) if db_path else default_db_path()
-    memory = MemoryStore(db_path=db)
-    tracer = LocalTracer(db_path=db)
+    memory = MemoryStore(backend=backend, db_path=db, redis_url=redis_url, namespace=namespace)
+    tracer = LocalTracer(backend=backend, db_path=db, redis_url=redis_url, namespace=namespace)
     files = FileMemory(memory_store=memory)
 
     memory_stats = memory.stats()
@@ -54,6 +58,8 @@ def generate_dashboard(
     traces = tracer.list(limit=1000)
     file_stats = files.stats()
     recommendations = generate_recommendations(memory_stats, memories, trace_stats, traces)
+    duplicate_count = sum(len(group) - 1 for group in find_duplicates(memory))
+    cache_count = len([item for item in memories if item.memory_type == "cache"])
 
     prompt_rows = (
         "".join(
@@ -133,17 +139,25 @@ def generate_dashboard(
       <h2>Overview</h2>
       <div class="grid">
         {_card("Total memories", memory_stats.total_memories)}
+        {_card("Backend", memory.backend)}
+        {_card("Namespace", memory.namespace)}
         {_card("Total documents", memory_stats.total_documents)}
         {_card("Total prompts", memory_stats.total_prompts)}
         {_card("Total traces", trace_stats.total_traces)}
         {_card("Estimated total cost", f"${trace_stats.total_estimated_cost:.6f}")}
         {_card("Average prompt score", memory_stats.average_prompt_score or "N/A")}
+        {_card("Expired memories", memory_stats.expired_memories)}
+        {_card("Duplicate memories", duplicate_count)}
+        {_card("Semantic cache entries", cache_count)}
       </div>
     </section>
     <section>
       <h2>Memory Statistics</h2>
       <table><tr><th>Type</th><th>Count</th></tr>{_dict_rows(memory_stats.memories_by_type)}</table>
       <table><tr><th>Source</th><th>Count</th></tr>{_dict_rows(memory_stats.memories_by_source)}</table>
+      <table><tr><th>User</th><th>Count</th></tr>{_dict_rows(memory_stats.memories_by_user)}</table>
+      <table><tr><th>Project</th><th>Count</th></tr>{_dict_rows(memory_stats.memories_by_project)}</table>
+      <table><tr><th>Workspace</th><th>Count</th></tr>{_dict_rows(memory_stats.memories_by_workspace)}</table>
     </section>
     <section>
       <h2>Prompt Quality Comments</h2>

@@ -34,6 +34,10 @@ def generate_recommendations(
         recommendations.append("Consider caching repeated trace names to reduce cost and latency.")
     if memory_stats.expired_memories:
         recommendations.append("Remove expired memories to keep local context clean.")
+    if any(not item.user_id and not item.project_id and not item.workspace_id for item in memories):
+        recommendations.append("Add user_id, project_id, or workspace_id to unscoped memories.")
+    if any(item.memory_type in {"temporary", "conversation"} and not item.ttl_seconds for item in memories):
+        recommendations.append("Use TTL for temporary and session memories.")
     if memory_stats.total_documents and any(
         not item.metadata for item in memories if item.memory_type == "document"
     ):

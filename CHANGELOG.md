@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-31
+
+### Added
+
+- Pluggable SQLite and optional Redis memory backends
+- User, project, workspace, agent, and session scoped memory
+- TTL expiry and cleanup, deterministic hybrid search, dedupe, and export/import
+- Redis trace store support and lightweight semantic cache foundation
+- Backend-aware dashboard statistics and Memovo-ready memory APIs
+
+### Known limitations
+
+- Redis vector search with real embeddings is planned for v0.4.0
+- MCP server is planned for v0.5.0
+- Qdrant and pgvector support are planned for later releases
+
 ## [0.2.91] - 2026-05-27
 
 ### Fixed
