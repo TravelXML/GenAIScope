@@ -7,6 +7,7 @@ from typing import Any
 
 from genaiscope.core.errors import RedisConnectionError, RedisDependencyMissingError
 from genaiscope.memory.base import BaseMemoryStore
+from genaiscope.memory.context import ContextResult
 from genaiscope.memory.models import MemoryItem, MemorySearchResult, MemoryStats
 from genaiscope.memory.namespaces import normalize_namespace
 from genaiscope.memory.prompt_quality import analyze_prompt_quality
@@ -115,6 +116,38 @@ class RedisMemoryStore(BaseMemoryStore):
             self.list(limit=1000, **filters), query, limit=limit, mode=mode,
             memory_type=filters.get("memory_type"),
             requested_scopes={scope: filters.get(scope) for scope in SCOPES},
+        )
+
+    def context(
+        self,
+        query: str,
+        user_id: str | None = None,
+        project_id: str | None = None,
+        workspace_id: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        limit: int = 10,
+        mode: str = "hybrid",
+        max_chars: int | None = None,
+    ) -> ContextResult:
+        results = self.search(
+            query, limit=limit, mode=mode,
+            user_id=user_id, project_id=project_id,
+            workspace_id=workspace_id, agent_id=agent_id, session_id=session_id,
+        )
+        lines: list[str] = []
+        selected: list[dict] = []
+        char_count = 0
+        for result in results:
+            line = f"- [{result.item.memory_type}] {result.item.content}"
+            if max_chars and char_count + len(line) > max_chars:
+                break
+            lines.append(line)
+            char_count += len(line)
+            selected.append({"id": result.item.id, "content": result.item.content, "score": result.score})
+        return ContextResult(
+            query=query, memories=selected, text="\n".join(lines),
+            char_count=char_count, memory_count=len(selected), mode=mode,
         )
 
     def delete(self, memory_id: str) -> bool:

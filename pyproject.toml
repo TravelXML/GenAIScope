@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "genaiscope"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local-first AI memory, observability, evaluation, safety, and optimization toolkit for GenAI applications."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -76,13 +76,36 @@ memory = [
     "redis>=5.0.0,<7.0.0"
 ]
 
+embeddings = [
+    "sentence-transformers>=2.7.0"
+]
+
+mcp = [
+    "mcp>=1.0.0"
+]
+
+server = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0"
+]
+
+providers = [
+    "openai>=1.30.0",
+    "anthropic>=0.30.0",
+    "google-generativeai>=0.5.0"
+]
+
 evals = []
 
 all = [
     "redis>=5.0.0,<7.0.0",
-    "openai>=1.0.0,<2.0.0",
-    "anthropic>=0.25.0,<1.0.0",
-    "google-generativeai>=0.5.0,<1.0.0"
+    "sentence-transformers>=2.7.0",
+    "mcp>=1.0.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "openai>=1.30.0",
+    "anthropic>=0.30.0",
+    "google-generativeai>=0.5.0"
 ]
 
 openai = [

@@ -52,6 +52,10 @@ class MemorySearchResult(BaseModel):
     match_type: str
     matched_terms: list[str] = Field(default_factory=list)
     ranking_reason: str = ""
+    keyword_score: float = 0.0
+    vector_score: float = 0.0
+    fused_score: float = 0.0
+    embedder_name: str = "none"
 
 
 class MemoryStats(BaseModel):

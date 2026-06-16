@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-16
+
+Release theme: **Universal Memory Access** — Embeddings + Vector Search + MCP Memory Server + REST API + Provider Adapters
+
+### Added
+
+- **Pluggable embedding providers** (`genaiscope.embeddings`): local hash (zero-dependency default), sentence-transformers, and OpenAI backends
+- **Vector store abstraction** (`genaiscope.vector`): LocalVectorStore (SQLite-backed cosine search) and RedisVectorStore (optional)
+- **Real semantic and fused hybrid memory search**: `mode="keyword"` | `mode="vector"` | `mode="hybrid"` (default)
+- **`memory.context()`** injectable-context helper — returns a ready-to-inject text block with char/token budget control
+- **`MemorySearchResult`** extended with `vector_score`, `keyword_score`, `fused_score`, `embedder_name` fields
+- **Semantic cache upgraded** to embedding cosine similarity with configurable threshold (deterministic fallback retained)
+- **MCP memory server** (`genaiscope.mcp`): stdio and StreamableHTTP transports, optional bearer auth; tools: `memory_remember`, `memory_search`, `memory_context`, `memory_add_prompt`, `memory_list`, `memory_stats`
+- **REST API server** (`genaiscope.server`): FastAPI app with `/health`, `/v1/memory/*`, `/v1/prompts` endpoints; optional bearer auth
+- **Provider adapters** (`genaiscope.adapters`): `OpenAIAdapter`, `AnthropicAdapter`, `GeminiAdapter` with automatic memory context injection and turn persistence
+- **Memory retrieval eval harness** (`genaiscope.evals`): recall@k, precision@k, MRR per mode; built-in sample dataset; `run_eval()`
+- **New error classes**: `EmbeddingBackendError`, `VectorBackendError`, `MCPDependencyMissingError`, `ServerDependencyMissingError`, `ProviderDependencyMissingError`, `AdapterError`
+- **New CLI commands**: `genaiscope embed test`, `genaiscope embed reindex`, `genaiscope serve mcp`, `genaiscope serve api`, `genaiscope eval memory`
+- **New optional extras**: `genaiscope[embeddings]`, `genaiscope[mcp]`, `genaiscope[server]`, `genaiscope[providers]`
+
+### Changed
+
+- Default search mode is now fused hybrid when an embedder is configured (degrades transparently to keyword otherwise)
+- `memory search` CLI command now shows `Vec` and `KW` score columns and accepts `--mode` and `--embedder` flags
+
+### Known limitations
+
+- Consumer Gemini app has no custom MCP support; use the REST API / GeminiAdapter instead
+- Full RAG evaluation, agent tool safety, and org RBAC are planned for v0.5.0
+- Qdrant / pgvector vector backends planned for a future release
+
 ## [0.3.0] - 2026-05-31
 
 ### Added

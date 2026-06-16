@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from genaiscope.memory.base import BaseMemoryStore
+from genaiscope.memory.context import ContextResult
 from genaiscope.memory.models import MemoryItem, MemorySearchResult, MemoryStats
 from genaiscope.memory.namespaces import normalize_namespace
 from genaiscope.memory.prompt_quality import analyze_prompt_quality
@@ -24,6 +26,10 @@ from genaiscope.memory.utils import (
     utc_now,
 )
 
+if TYPE_CHECKING:
+    from genaiscope.embeddings.base import BaseEmbedder
+    from genaiscope.vector.base import BaseVectorStore
+
 SCOPES = ("user_id", "workspace_id", "project_id", "agent_id", "session_id")
 
 
@@ -37,6 +43,8 @@ class SQLiteMemoryStore(BaseMemoryStore):
         db_path: str | Path | None = None,
         auto_create: bool = True,
         namespace: str = "genaiscope",
+        embedder: BaseEmbedder | None = None,
+        vector_store: BaseVectorStore | None = None,
         **_kwargs: Any,
     ):
         self.db_path = Path(db_path) if db_path else default_db_path()
@@ -44,8 +52,22 @@ class SQLiteMemoryStore(BaseMemoryStore):
         ensure_parent(self.db_path)
         self.connection = sqlite3.connect(self.db_path)
         self.connection.row_factory = sqlite3.Row
+        self._embedder = embedder
+        self._vector_store = vector_store
+
         if auto_create:
             self._create_schema()
+
+        # lazy-init local vector store sidecar when no store was provided but embedder exists
+        if self._embedder and not self._vector_store:
+            try:
+                from genaiscope.vector.local_vector import LocalVectorStore
+
+                self._vector_store = LocalVectorStore(
+                    db_path=self.db_path.with_suffix(".vectors.db")
+                )
+            except Exception:
+                pass
 
     def _create_schema(self) -> None:
         self.connection.executescript(
@@ -117,8 +139,9 @@ class SQLiteMemoryStore(BaseMemoryStore):
         clean_type = normalize_memory_type(memory_type)
         clean_tags = normalize_tags(tags)
         quality = analyze_prompt_quality(content) if clean_type == "prompt" else None
+        mid = memory_id or str(uuid.uuid4())
         values = {
-            "id": memory_id or str(uuid.uuid4()),
+            "id": mid,
             "content": content,
             "memory_type": clean_type,
             "user_id": user_id,
@@ -148,10 +171,34 @@ class SQLiteMemoryStore(BaseMemoryStore):
             tuple(values.values()),
         )
         self.connection.commit()
-        return self.get(values["id"], include_expired=True)  # type: ignore[return-value]
 
-    def search(self, query: str, limit: int = 10, mode: str = "hybrid", **filters: Any) -> list[MemorySearchResult]:
-        """Search non-expired memories using deterministic hybrid scoring."""
+        # store embedding vector if embedder is configured
+        if self._embedder and self._vector_store:
+            try:
+                vec = self._embedder.embed(content)
+                vec_meta = {
+                    "user_id": user_id,
+                    "workspace_id": workspace_id,
+                    "project_id": project_id,
+                    "agent_id": agent_id,
+                    "session_id": session_id,
+                    "memory_type": clean_type,
+                    "importance": importance,
+                }
+                self._vector_store.upsert(mid, vec, vec_meta)
+            except Exception:
+                pass
+
+        return self.get(mid, include_expired=True)  # type: ignore[return-value]
+
+    def search(
+        self,
+        query: str,
+        limit: int = 10,
+        mode: str = "hybrid",
+        **filters: Any,
+    ) -> list[MemorySearchResult]:
+        """Search non-expired memories."""
 
         memory_type = filters.get("memory_type")
         candidates = self.list(limit=1000, **filters)
@@ -162,7 +209,78 @@ class SQLiteMemoryStore(BaseMemoryStore):
             mode=mode,
             memory_type=memory_type,
             requested_scopes={scope: filters.get(scope) for scope in SCOPES},
+            embedder=self._embedder,
+            vector_store=self._vector_store,
         )
+
+    def context(
+        self,
+        query: str,
+        user_id: str | None = None,
+        project_id: str | None = None,
+        workspace_id: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        limit: int = 10,
+        mode: str = "hybrid",
+        max_chars: int | None = None,
+    ) -> ContextResult:
+        """Return a ready-to-inject context block from the top memories."""
+
+        results = self.search(
+            query,
+            limit=limit,
+            mode=mode,
+            user_id=user_id,
+            project_id=project_id,
+            workspace_id=workspace_id,
+            agent_id=agent_id,
+            session_id=session_id,
+        )
+
+        lines: list[str] = []
+        selected: list[dict] = []
+        char_count = 0
+        for result in results:
+            line = f"- [{result.item.memory_type}] {result.item.content}"
+            if max_chars and char_count + len(line) > max_chars:
+                break
+            lines.append(line)
+            char_count += len(line)
+            selected.append({"id": result.item.id, "content": result.item.content, "score": result.score})
+
+        text = "\n".join(lines)
+        return ContextResult(
+            query=query,
+            memories=selected,
+            text=text,
+            char_count=char_count,
+            memory_count=len(selected),
+            embedder_used=self._embedder.name if self._embedder else "none",
+            mode=mode,
+        )
+
+    def reindex_embeddings(self) -> int:
+        """Recompute and store embeddings for all memories. Returns count reindexed."""
+        if not self._embedder or not self._vector_store:
+            return 0
+        items = self.list(limit=100000, include_expired=True)
+        count = 0
+        for item in items:
+            try:
+                vec = self._embedder.embed(item.content)
+                meta: dict[str, Any] = {
+                    "user_id": item.user_id,
+                    "workspace_id": item.workspace_id,
+                    "project_id": item.project_id,
+                    "memory_type": item.memory_type,
+                    "importance": item.importance,
+                }
+                self._vector_store.upsert(item.id, vec, meta)
+                count += 1
+            except Exception:
+                pass
+        return count
 
     def list(
         self,
@@ -205,6 +323,9 @@ class SQLiteMemoryStore(BaseMemoryStore):
     def delete(self, memory_id: str) -> bool:
         cursor = self.connection.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
         self.connection.commit()
+        if self._vector_store:
+            with contextlib.suppress(Exception):
+                self._vector_store.delete(memory_id)
         return cursor.rowcount > 0
 
     def clear(self, confirm: bool = False, **filters: Any) -> int:
@@ -227,6 +348,7 @@ class SQLiteMemoryStore(BaseMemoryStore):
         items = self.list(limit=100000, include_expired=True)
         active = [item for item in items if not is_expired(item.expires_at)]
         now = utc_now()
+
         def counts(field: str) -> dict[str, int]:
             result: dict[str, int] = {}
             for item in active:
@@ -234,16 +356,24 @@ class SQLiteMemoryStore(BaseMemoryStore):
                 if value:
                     result[value] = result.get(value, 0) + 1
             return result
+
         prompt_scores = [item.prompt_score for item in active if item.prompt_score is not None]
         by_type = counts("memory_type")
+        vec_count = self._vector_store.count() if self._vector_store else 0
         return MemoryStats(
-            total_memories=len(active), memories_by_type=by_type, memories_by_source=counts("source"),
-            memories_by_user=counts("user_id"), memories_by_workspace=counts("workspace_id"),
-            memories_by_project=counts("project_id"), total_prompts=by_type.get("prompt", 0),
+            total_memories=len(active),
+            memories_by_type=by_type,
+            memories_by_source=counts("source"),
+            memories_by_user=counts("user_id"),
+            memories_by_workspace=counts("workspace_id"),
+            memories_by_project=counts("project_id"),
+            total_prompts=by_type.get("prompt", 0),
             average_prompt_score=round(sum(prompt_scores) / len(prompt_scores), 2) if prompt_scores else None,
-            low_quality_prompts=len([score for score in prompt_scores if score < 60]),
-            total_documents=by_type.get("document", 0), expired_memories=len(items) - len(active),
+            low_quality_prompts=len([s for s in prompt_scores if s < 60]),
+            total_documents=by_type.get("document", 0),
+            expired_memories=len(items) - len(active),
             recent_memories=len([item for item in active if (now - item.created_at).days <= 7]),
+            duplicate_memories=vec_count,
         )
 
     def close(self) -> None:

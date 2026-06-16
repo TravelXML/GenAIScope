@@ -39,3 +39,27 @@ class RedisConnectionError(BackendNotAvailableError):
 
 class MemoryNotFoundError(GenAIScopeError):
     """Raised when a requested memory does not exist."""
+
+
+class EmbeddingBackendError(BackendNotAvailableError):
+    """Raised when an embedding backend is unavailable or misconfigured."""
+
+
+class VectorBackendError(BackendNotAvailableError):
+    """Raised when the vector store backend is unavailable."""
+
+
+class MCPDependencyMissingError(BackendNotAvailableError):
+    """Raised when the mcp extra is not installed."""
+
+
+class ServerDependencyMissingError(BackendNotAvailableError):
+    """Raised when the server extra (FastAPI/uvicorn) is not installed."""
+
+
+class ProviderDependencyMissingError(BackendNotAvailableError):
+    """Raised when a provider SDK (openai/anthropic/google-genai) is not installed."""
+
+
+class AdapterError(GenAIScopeError):
+    """Raised when a provider adapter encounters an unrecoverable error."""

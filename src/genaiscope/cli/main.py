@@ -41,12 +41,18 @@ files_app = typer.Typer(help="Local file memory commands.", no_args_is_help=True
 trace_app = typer.Typer(help="Local trace commands.", no_args_is_help=True)
 dashboard_app = typer.Typer(help="Local dashboard commands.", no_args_is_help=True)
 cache_app = typer.Typer(help="Semantic cache commands.", no_args_is_help=True)
+embed_app = typer.Typer(help="Embedding management commands.", no_args_is_help=True)
+serve_app = typer.Typer(help="Server commands (MCP and REST API).", no_args_is_help=True)
+eval_app = typer.Typer(help="Evaluation harness commands.", no_args_is_help=True)
 
 app.add_typer(memory_app, name="memory")
 app.add_typer(files_app, name="files")
 app.add_typer(trace_app, name="trace")
 app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(cache_app, name="cache")
+app.add_typer(embed_app, name="embed")
+app.add_typer(serve_app, name="serve")
+app.add_typer(eval_app, name="eval")
 
 
 def _parse_tags(tags: str | None) -> list[str]:
@@ -59,6 +65,35 @@ def _truncate(value: str | None, length: int = 80) -> str:
     text = value or ""
     return text if len(text) <= length else text[: length - 3] + "..."
 
+
+def _build_store(
+    backend: str,
+    redis_url: str,
+    namespace: str,
+    db_path: Path | None = None,
+    embedder_name: str | None = None,
+) -> object:
+    """Build a memory store, optionally with an embedder attached."""
+    embedder = None
+    if embedder_name:
+        try:
+            from genaiscope.embeddings.factory import get_embedder
+            embedder = get_embedder(embedder_name)
+        except Exception as e:
+            console.print(f"[yellow]Warning: embedder '{embedder_name}' not available: {e}[/yellow]")
+
+    return MemoryStore(
+        db_path=db_path,
+        backend=backend,
+        redis_url=redis_url,
+        namespace=namespace,
+        embedder=embedder,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Top-level commands
+# ──────────────────────────────────────────────────────────────────────────────
 
 @app.command()
 def version() -> None:
@@ -200,6 +235,10 @@ def validate_output(
             console.print(f"  Error: {result['error']}")
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Memory commands
+# ──────────────────────────────────────────────────────────────────────────────
+
 @memory_app.command("add")
 def memory_add(
     content: str,
@@ -216,10 +255,11 @@ def memory_add(
     backend: str = typer.Option("sqlite", "--backend"),
     redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
     namespace: str = typer.Option("genaiscope", "--namespace"),
+    embedder: str | None = typer.Option(None, "--embedder", help="Embedder backend."),
 ) -> None:
     """Add a local memory."""
 
-    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    memory = _build_store(backend, redis_url, namespace, db_path, embedder)
     item = memory.add(content, memory_type=memory_type, user_id=user_id, workspace_id=workspace_id, project_id=project_id, agent_id=agent_id, session_id=session_id, importance=importance, ttl_days=ttl_days, tags=_parse_tags(tags))
     console.print(
         Panel.fit(f"Memory ID: {item.id}\nType: {item.memory_type}", title="Memory added")
@@ -258,6 +298,7 @@ def memory_add_prompt(
 def memory_search(
     query: str,
     limit: int = typer.Option(10, "--limit", "-l"),
+    mode: str = typer.Option("hybrid", "--mode", help="Search mode: keyword|vector|hybrid"),
     user_id: str | None = typer.Option(None, "--user-id"),
     workspace_id: str | None = typer.Option(None, "--workspace-id"),
     project_id: str | None = typer.Option(None, "--project-id"),
@@ -266,22 +307,25 @@ def memory_search(
     backend: str = typer.Option("sqlite", "--backend"),
     redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
     namespace: str = typer.Option("genaiscope", "--namespace"),
+    embedder: str | None = typer.Option(None, "--embedder", help="Embedder: local|sentence-transformers|openai"),
 ) -> None:
     """Search local memories."""
 
-    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
-    results = memory.search(query, user_id=user_id, workspace_id=workspace_id, project_id=project_id, memory_type=memory_type, limit=limit)
-    table = Table(title="Memory Search Results")
+    memory = _build_store(backend, redis_url, namespace, db_path, embedder)
+    results = memory.search(query, user_id=user_id, workspace_id=workspace_id, project_id=project_id, memory_type=memory_type, limit=limit, mode=mode)
+    table = Table(title=f"Memory Search Results [mode={mode}]")
     table.add_column("Score")
     table.add_column("Type")
     table.add_column("Content")
-    table.add_column("Tags")
+    table.add_column("Vec")
+    table.add_column("KW")
     for result in results:
         table.add_row(
             f"{result.score:.2f}",
             result.item.memory_type,
             _truncate(result.item.content),
-            ", ".join(result.item.tags),
+            f"{result.vector_score:.2f}",
+            f"{result.keyword_score:.2f}",
         )
     console.print(table)
     memory.close()
@@ -444,6 +488,10 @@ def memory_import(
     memory.close()
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# File memory commands
+# ──────────────────────────────────────────────────────────────────────────────
+
 @files_app.command("add")
 def files_add(
     path: Path,
@@ -514,6 +562,10 @@ def files_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
     console.print_json(data=files.stats())
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Trace commands
+# ──────────────────────────────────────────────────────────────────────────────
+
 @trace_app.command("list")
 def trace_list(
     limit: int = typer.Option(20, "--limit", "-l"),
@@ -570,6 +622,10 @@ def trace_clear(
     tracer.close()
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Dashboard commands
+# ──────────────────────────────────────────────────────────────────────────────
+
 @dashboard_app.command("generate")
 def dashboard_generate(
     output: Path | None = typer.Option(None, "--output", "-o"),
@@ -596,6 +652,10 @@ def dashboard_open(
     console.print(f"Dashboard opened: {path}")
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Cache commands
+# ──────────────────────────────────────────────────────────────────────────────
+
 @cache_app.command("stats")
 def cache_stats(db_path: Path | None = typer.Option(None, "--db-path")) -> None:
     """Show semantic cache statistics."""
@@ -608,6 +668,159 @@ def cache_clear(yes: bool = typer.Option(False, "--yes"), db_path: Path | None =
     """Clear semantic cache entries."""
 
     console.print(f"[green]Cleared {SemanticCache(db_path=db_path).clear(confirm=yes)} cache entries[/green]")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Embed commands (v0.4.0)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@embed_app.command("test")
+def embed_test(
+    text: str,
+    embedder: str = typer.Option("local", "--embedder", "-e", help="Embedder backend."),
+) -> None:
+    """Test an embedder — show vector dimensions and first few values."""
+
+    try:
+        from genaiscope.embeddings.factory import get_embedder
+
+        emb = get_embedder(embedder)
+        vec = emb.embed(text)
+        table = Table(title=f"Embedding [{emb.name}]")
+        table.add_column("Property")
+        table.add_column("Value")
+        table.add_row("Backend", emb.name)
+        table.add_row("Dimensions", str(emb.dimensions))
+        table.add_row("First 8 values", str([round(v, 4) for v in vec[:8]]))
+        console.print(table)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1) from e
+
+
+@embed_app.command("reindex")
+def embed_reindex(
+    embedder: str = typer.Option("local", "--embedder", "-e", help="Embedder backend."),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Recompute and store embeddings for all memories."""
+
+    try:
+        from genaiscope.embeddings.factory import get_embedder
+
+        emb = get_embedder(embedder)
+        memory = MemoryStore(
+            db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace, embedder=emb
+        )
+        count = memory.reindex_embeddings() if hasattr(memory, "reindex_embeddings") else 0
+        console.print(f"[green]Reindexed {count} memories with embedder '{emb.name}'[/green]")
+        memory.close()
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1) from e
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Serve commands (v0.4.0)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@serve_app.command("mcp")
+def serve_mcp(
+    transport: str = typer.Option("stdio", "--transport", "-t", help="Transport: stdio|http"),
+    host: str = typer.Option("0.0.0.0", "--host"),
+    port: int = typer.Option(8848, "--port"),
+    auth: str = typer.Option("none", "--auth", help="Auth mode: none|bearer"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+    embedder: str | None = typer.Option(None, "--embedder"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Run the GenAIScope MCP memory server."""
+
+    try:
+        from genaiscope.mcp.server import run_http, run_stdio
+    except Exception as e:
+        console.print(f"[red]MCP server error: {e}[/red]")
+        raise typer.Exit(code=1) from e
+
+    store = _build_store(backend, redis_url, namespace, db_path, embedder)
+    console.print(f"[bold green]GenAIScope MCP server starting ({transport})[/bold green]")
+
+    if transport == "stdio":
+        run_stdio(store)
+    else:
+        console.print(f"Listening on {host}:{port}")
+        run_http(store, host=host, port=port)
+
+
+@serve_app.command("api")
+def serve_api(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8000, "--port"),
+    auth: str = typer.Option("none", "--auth", help="Auth mode: none|bearer"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+    embedder: str | None = typer.Option(None, "--embedder"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+) -> None:
+    """Run the GenAIScope REST API server."""
+
+    try:
+        from genaiscope.server.app import run_api_server
+    except Exception as e:
+        console.print(f"[red]Server error: {e}[/red]")
+        raise typer.Exit(code=1) from e
+
+    store = _build_store(backend, redis_url, namespace, db_path, embedder)
+    auth_enabled = auth == "bearer"
+    console.print(f"[bold green]GenAIScope REST API starting on {host}:{port}[/bold green]")
+    run_api_server(store, host=host, port=port, auth_enabled=auth_enabled)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Eval commands (v0.4.0)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@eval_app.command("memory")
+def eval_memory(
+    mode: str | None = typer.Option(None, "--mode", help="Run only this mode: keyword|vector|hybrid"),
+    embedder: str = typer.Option("local", "--embedder", "-e"),
+    top_k: int = typer.Option(5, "--top-k", "-k"),
+    dataset: Path | None = typer.Option(None, "--dataset", "-d", help="Custom eval dataset JSON."),
+) -> None:
+    """Run the memory retrieval eval harness."""
+
+    from genaiscope.evals.memory_eval import load_eval_dataset, run_eval
+
+    ds = None
+    if dataset:
+        try:
+            ds = load_eval_dataset(dataset)
+        except Exception as e:
+            console.print(f"[red]Failed to load dataset: {e}[/red]")
+            raise typer.Exit(code=1) from e
+
+    modes = [mode] if mode else ["keyword", "hybrid"]
+    with console.status("Running memory eval..."):
+        report = run_eval(dataset=ds, modes=modes, embedder_name=embedder, top_k=top_k)
+
+    table = Table(title=f"Memory Retrieval Eval (top-{top_k}, dataset_size={report.dataset_size})")
+    table.add_column("Mode")
+    table.add_column("Embedder")
+    table.add_column("Recall@k")
+    table.add_column("Precision@k")
+    table.add_column("MRR")
+    for r in report.results:
+        table.add_row(
+            r.mode, r.embedder,
+            f"{r.recall_at_k:.3f}", f"{r.precision_at_k:.3f}", f"{r.mrr:.3f}",
+        )
+    console.print(table)
 
 
 if __name__ == "__main__":
