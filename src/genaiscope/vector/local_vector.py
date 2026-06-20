@@ -6,7 +6,6 @@ Uses numpy when available for speed; falls back to pure Python.
 from __future__ import annotations
 
 import json
-import math
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -14,19 +13,7 @@ from typing import Any
 from genaiscope.memory.utils import default_db_path, ensure_parent
 from genaiscope.vector.base import BaseVectorStore
 from genaiscope.vector.models import VectorMatch
-
-
-def _cosine_score(a: list[float], b: list[float]) -> float:
-    """Pure-Python cosine similarity for pre-normalized vectors."""
-    try:
-        import numpy as np  # type: ignore[import-not-found]
-
-        return float(np.dot(a, b))
-    except ImportError:
-        dot = sum(x * y for x, y in zip(a, b, strict=False))
-        na = math.sqrt(sum(x * x for x in a)) or 1.0
-        nb = math.sqrt(sum(x * x for x in b)) or 1.0
-        return dot / (na * nb)
+from genaiscope.vector.similarity import cosine_similarity as _cosine_score
 
 
 class LocalVectorStore(BaseVectorStore):
@@ -89,3 +76,9 @@ class LocalVectorStore(BaseVectorStore):
 
     def count(self) -> int:
         return self._conn.execute(f"SELECT COUNT(*) FROM {self._table}").fetchone()[0]
+
+    def get_vector(self, vector_id: str) -> list[float] | None:
+        row = self._conn.execute(
+            f"SELECT vector FROM {self._table} WHERE vector_id = ?", (vector_id,)
+        ).fetchone()
+        return json.loads(row["vector"]) if row else None

@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from genaiscope.adapters.base import MemoryAdapter
+from genaiscope.analyzers import CostAnalyzer
 from genaiscope.core.errors import ProviderDependencyMissingError
 
 if TYPE_CHECKING:
@@ -69,7 +70,17 @@ class GeminiAdapter(MemoryAdapter):
             self._model_name,
             system_instruction=system_instruction,
         )
-        response = model.generate_content(contents, **provider_kwargs)
+        if self.tracer is None:
+            response = model.generate_content(contents, **provider_kwargs)
+        else:
+            with self.tracer.trace(name="chat", model=self._model_name, provider="gemini") as span:
+                response = model.generate_content(contents, **provider_kwargs)
+                usage = getattr(response, "usage_metadata", None)
+                input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+                output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
+                span.log_tokens(input_tokens=input_tokens or 0, output_tokens=output_tokens or 0)
+                cost = CostAnalyzer().estimate_cost(self._model_name, input_tokens or 0, output_tokens or 0)
+                span.log_cost(cost["total_cost"])
 
         if self.store_assistant_turns:
             try:

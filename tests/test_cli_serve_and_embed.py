@@ -10,7 +10,7 @@ runner = CliRunner()
 def test_version_command() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "0.4.0" in result.output
+    assert "0.5.0" in result.output
 
 
 def test_embed_test_local() -> None:
@@ -36,9 +36,21 @@ def test_serve_mcp_help() -> None:
     assert "transport" in result.output.lower() or "stdio" in result.output.lower()
 
 
+def test_serve_mcp_help_shows_trace_flag() -> None:
+    result = runner.invoke(app, ["serve", "mcp", "--help"])
+    assert result.exit_code == 0
+    assert "--trace" in result.output
+
+
 def test_serve_api_help() -> None:
     result = runner.invoke(app, ["serve", "api", "--help"])
     assert result.exit_code == 0
+
+
+def test_serve_api_help_shows_trace_flag() -> None:
+    result = runner.invoke(app, ["serve", "api", "--help"])
+    assert result.exit_code == 0
+    assert "--trace" in result.output
 
 
 def test_eval_memory_help() -> None:

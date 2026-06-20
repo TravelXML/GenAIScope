@@ -80,3 +80,9 @@ def ensure_parent(path: Path) -> None:
     """Create the parent directory for a path."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def estimate_tokens(text: str) -> int:
+    """Zero-dependency token estimate (~4 chars per token, no tiktoken)."""
+
+    return max(1, len(text) // 4)

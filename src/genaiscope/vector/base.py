@@ -30,3 +30,12 @@ class BaseVectorStore(ABC):
 
     @abstractmethod
     def count(self) -> int: ...
+
+    def get_vector(self, vector_id: str) -> list[float] | None:
+        """Return the stored vector for an id, or None if missing/unsupported.
+
+        Concrete (not abstract) so existing third-party subclasses keep working
+        without implementing it; callers should treat NotImplementedError the
+        same as "no vector available".
+        """
+        raise NotImplementedError

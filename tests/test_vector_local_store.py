@@ -1,9 +1,6 @@
 """Tests for LocalVectorStore — always runs."""
 
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from genaiscope.vector.local_vector import LocalVectorStore
 
@@ -58,3 +55,15 @@ def test_upsert_replace(tmp_path: Path) -> None:
     assert store.count() == 1
     results = store.query(_unit_vec(idx=1), top_k=1)
     assert results[0].vector_id == "dup"
+
+
+def test_get_vector_round_trip(tmp_path: Path) -> None:
+    store = LocalVectorStore(db_path=tmp_path / "v.db")
+    vec = _unit_vec(idx=2)
+    store.upsert("a", vec, {})
+    assert store.get_vector("a") == vec
+
+
+def test_get_vector_missing(tmp_path: Path) -> None:
+    store = LocalVectorStore(db_path=tmp_path / "v.db")
+    assert store.get_vector("does-not-exist") is None

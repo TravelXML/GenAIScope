@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from genaiscope.core.errors import MCPDependencyMissingError
@@ -35,14 +36,14 @@ def _require_mcp() -> Any:
         ) from exc
 
 
-def build_mcp_server(store: Any, server_name: str = "GenAIScope Memory") -> Any:
+def build_mcp_server(store: Any, tracer: Any = None, server_name: str = "GenAIScope Memory") -> Any:
     """Build a FastMCP / MCP server object with GenAIScope tools registered."""
     _require_mcp()
 
     try:
         from mcp.server.fastmcp import FastMCP
         mcp_server = FastMCP(server_name)
-        _register_fastmcp(mcp_server, store)
+        _register_fastmcp(mcp_server, store, tracer)
         return mcp_server
     except ImportError:
         pass
@@ -60,14 +61,20 @@ def build_mcp_server(store: Any, server_name: str = "GenAIScope Memory") -> Any:
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         import json
-        result = _dispatch(store, name, arguments)
+        result = _dispatch(store, name, arguments, tracer)
         return [TextContent(type="text", text=json.dumps(result, default=str))]
 
     return server
 
 
-def _register_fastmcp(mcp_server: Any, store: Any) -> None:
+def _register_fastmcp(mcp_server: Any, store: Any, tracer: Any = None) -> None:
     """Register tools on a FastMCP instance."""
+
+    def _traced(tool_name: str, fn: Callable[..., dict[str, Any]], *args: Any, **kwargs: Any) -> dict[str, Any]:
+        if tracer is None:
+            return fn(*args, **kwargs)
+        with tracer.trace(name=f"mcp.{tool_name}", provider="mcp"):
+            return fn(*args, **kwargs)
 
     @mcp_server.tool()
     def memory_remember(
@@ -80,8 +87,9 @@ def _register_fastmcp(mcp_server: Any, store: Any) -> None:
         ttl_days: int | None = None,
     ) -> dict:
         """Store a memory in GenAIScope."""
-        return tool_memory_remember(
-            store, content=content, user_id=user_id, project_id=project_id,
+        return _traced(
+            "memory_remember", tool_memory_remember, store,
+            content=content, user_id=user_id, project_id=project_id,
             workspace_id=workspace_id, memory_type=memory_type,
             importance=importance, ttl_days=ttl_days,
         )
@@ -103,7 +111,7 @@ def _register_fastmcp(mcp_server: Any, store: Any) -> None:
         }
         if memory_type:
             kw["memory_type"] = memory_type
-        return tool_memory_search(store, query, **kw)
+        return _traced("memory_search", tool_memory_search, store, query, **kw)
 
     @mcp_server.tool()
     def memory_context(
@@ -115,8 +123,8 @@ def _register_fastmcp(mcp_server: Any, store: Any) -> None:
         max_chars: int | None = None,
     ) -> dict:
         """Return a ready-to-inject context block for assistants."""
-        return tool_memory_context(
-            store, query,
+        return _traced(
+            "memory_context", tool_memory_context, store, query,
             user_id=user_id, project_id=project_id, workspace_id=workspace_id,
             limit=limit, max_chars=max_chars,
         )
@@ -128,7 +136,10 @@ def _register_fastmcp(mcp_server: Any, store: Any) -> None:
         project_id: str | None = None,
     ) -> dict:
         """Store a prompt and return prompt quality score/comments."""
-        return tool_memory_add_prompt(store, prompt, user_id=user_id, project_id=project_id)
+        return _traced(
+            "memory_add_prompt", tool_memory_add_prompt, store, prompt,
+            user_id=user_id, project_id=project_id,
+        )
 
     @mcp_server.tool()
     def memory_list(
@@ -141,12 +152,12 @@ def _register_fastmcp(mcp_server: Any, store: Any) -> None:
         kw: dict[str, Any] = {"user_id": user_id, "project_id": project_id, "limit": limit}
         if memory_type:
             kw["memory_type"] = memory_type
-        return tool_memory_list(store, **kw)
+        return _traced("memory_list", tool_memory_list, store, **kw)
 
     @mcp_server.tool()
     def memory_stats() -> dict:
         """Return aggregate memory statistics."""
-        return tool_memory_stats(store)
+        return _traced("memory_stats", tool_memory_stats, store)
 
 
 def _tool_definitions() -> list[Any]:
@@ -162,7 +173,7 @@ def _tool_definitions() -> list[Any]:
     ]
 
 
-def _dispatch(store: Any, name: str, args: dict) -> Any:
+def _dispatch(store: Any, name: str, args: dict, tracer: Any = None) -> Any:
     dispatch = {
         "memory_remember": lambda: tool_memory_remember(store, **args),
         "memory_search": lambda: tool_memory_search(store, **args),
@@ -174,15 +185,18 @@ def _dispatch(store: Any, name: str, args: dict) -> Any:
     fn = dispatch.get(name)
     if fn is None:
         return {"error": f"Unknown tool: {name}"}
-    return fn()
+    if tracer is None:
+        return fn()
+    with tracer.trace(name=f"mcp.{name}", provider="mcp"):
+        return fn()
 
 
-def run_stdio(store: Any) -> None:
+def run_stdio(store: Any, tracer: Any = None) -> None:
     """Run MCP server over stdio transport."""
     import asyncio
 
     _require_mcp()
-    server = build_mcp_server(store)
+    server = build_mcp_server(store, tracer=tracer)
 
     try:
         # FastMCP path
@@ -198,12 +212,12 @@ def run_stdio(store: Any) -> None:
         asyncio.run(_run())
 
 
-def run_http(store: Any, host: str = "0.0.0.0", port: int = 8848) -> None:
+def run_http(store: Any, host: str = "0.0.0.0", port: int = 8848, tracer: Any = None) -> None:
     """Run MCP server over StreamableHTTP transport."""
     import asyncio
 
     _require_mcp()
-    server = build_mcp_server(store)
+    server = build_mcp_server(store, tracer=tracer)
 
     try:
         server.run(transport="streamable-http", host=host, port=port)

@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from genaiscope.adapters.base import MemoryAdapter
+from genaiscope.analyzers import CostAnalyzer
 from genaiscope.core.errors import ProviderDependencyMissingError
 
 if TYPE_CHECKING:
@@ -55,7 +56,21 @@ class OpenAIAdapter(MemoryAdapter):
                 user_id=self.user_id, project_id=self.project_id,
             )
 
-        response = self.client.chat.completions.create(messages=augmented, **provider_kwargs)
+        model_name = provider_kwargs.get("model")
+        if self.tracer is None:
+            response = self.client.chat.completions.create(messages=augmented, **provider_kwargs)
+        else:
+            with self.tracer.trace(name="chat", model=model_name, provider="openai") as span:
+                response = self.client.chat.completions.create(messages=augmented, **provider_kwargs)
+                resp_model = getattr(response, "model", None) or model_name
+                usage = getattr(response, "usage", None)
+                input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
+                output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+                span.model = resp_model
+                span.log_tokens(input_tokens=input_tokens or 0, output_tokens=output_tokens or 0)
+                if resp_model:
+                    cost = CostAnalyzer().estimate_cost(resp_model, input_tokens or 0, output_tokens or 0)
+                    span.log_cost(cost["total_cost"])
 
         if self.store_assistant_turns:
             try:

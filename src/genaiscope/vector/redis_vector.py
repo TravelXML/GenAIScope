@@ -97,3 +97,13 @@ class RedisVectorStore(BaseVectorStore):
     def count(self) -> int:
         keys = self._client.keys(f"{self._prefix}*")
         return len(keys)
+
+    def get_vector(self, vector_id: str) -> list[float] | None:
+        import struct
+
+        raw = self._client.hgetall(self._key(vector_id))
+        if b"__vec__" not in raw:
+            return None
+        packed = raw[b"__vec__"]
+        n = len(packed) // 4
+        return list(struct.unpack(f"{n}f", packed))

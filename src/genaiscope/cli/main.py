@@ -22,6 +22,7 @@ from genaiscope.files import FileMemory
 from genaiscope.inspect import Inspector
 from genaiscope.memory import (
     MemoryStore,
+    compact_memories,
     dedupe_memories,
     export_memories,
     find_duplicates,
@@ -89,6 +90,19 @@ def _build_store(
         namespace=namespace,
         embedder=embedder,
     )
+
+
+def _build_tracer(
+    trace: bool,
+    backend: str,
+    redis_url: str,
+    namespace: str,
+    db_path: Path | None = None,
+) -> LocalTracer | None:
+    """Build a LocalTracer sharing the same backend/db_path as the memory store, or None if disabled."""
+    if not trace:
+        return None
+    return LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -456,6 +470,60 @@ def memory_dedupe(
     memory.close()
 
 
+def _resolve_summarizer(summarizer: str, summarizer_model: str | None):
+    """Build a real LLM summarizer for --summarizer openai|anthropic|gemini."""
+
+    from genaiscope.adapters.summarizers import (
+        anthropic_summarizer,
+        gemini_summarizer,
+        openai_summarizer,
+    )
+
+    factories = {"openai": openai_summarizer, "anthropic": anthropic_summarizer, "gemini": gemini_summarizer}
+    if summarizer not in factories:
+        raise ValueError(f"Unknown summarizer: {summarizer}. Use 'none', 'openai', 'anthropic', or 'gemini'.")
+    kwargs = {"model": summarizer_model} if summarizer_model else {}
+    return factories[summarizer](**kwargs)
+
+
+@memory_app.command("compact")
+def memory_compact(
+    apply: bool = typer.Option(False, "--apply", help="Apply compaction (default is dry-run)."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Force dry-run even if --apply is passed."),
+    strategy: str = typer.Option("synthesize", "--strategy", help="synthesize|keep_best"),
+    threshold: float = typer.Option(0.92, "--threshold", help="Cosine similarity threshold for clustering."),
+    summarizer: str = typer.Option("none", "--summarizer", help="none|openai|anthropic|gemini"),
+    summarizer_model: str | None = typer.Option(None, "--summarizer-model", help="Model name for the chosen summarizer SDK."),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+    embedder: str | None = typer.Option(None, "--embedder", help="Embedder: local|sentence-transformers|openai"),
+    user_id: str | None = typer.Option(None, "--user-id"),
+    project_id: str | None = typer.Option(None, "--project-id"),
+) -> None:
+    """Preview or apply semantic memory compaction (merges paraphrased duplicates, not just exact-text ones)."""
+
+    memory = _build_store(backend, redis_url, namespace, db_path, embedder)
+    try:
+        summarizer_fn = _resolve_summarizer(summarizer, summarizer_model) if summarizer != "none" else None
+        report = compact_memories(
+            memory,
+            strategy=strategy,
+            summarizer=summarizer_fn,
+            threshold=threshold,
+            dry_run=dry_run or not apply,
+            user_id=user_id,
+            project_id=project_id,
+        )
+        console.print_json(data=report.model_dump())
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1) from e
+    finally:
+        memory.close()
+
+
 @memory_app.command("export")
 def memory_export(
     output: Path,
@@ -738,6 +806,7 @@ def serve_mcp(
     namespace: str = typer.Option("genaiscope", "--namespace"),
     embedder: str | None = typer.Option(None, "--embedder"),
     db_path: Path | None = typer.Option(None, "--db-path"),
+    trace: bool = typer.Option(False, "--trace", help="Enable local tracing for tool calls."),
 ) -> None:
     """Run the GenAIScope MCP memory server."""
 
@@ -748,13 +817,14 @@ def serve_mcp(
         raise typer.Exit(code=1) from e
 
     store = _build_store(backend, redis_url, namespace, db_path, embedder)
+    tracer = _build_tracer(trace, backend, redis_url, namespace, db_path)
     console.print(f"[bold green]GenAIScope MCP server starting ({transport})[/bold green]")
 
     if transport == "stdio":
-        run_stdio(store)
+        run_stdio(store, tracer=tracer)
     else:
         console.print(f"Listening on {host}:{port}")
-        run_http(store, host=host, port=port)
+        run_http(store, host=host, port=port, tracer=tracer)
 
 
 @serve_app.command("api")
@@ -767,6 +837,7 @@ def serve_api(
     namespace: str = typer.Option("genaiscope", "--namespace"),
     embedder: str | None = typer.Option(None, "--embedder"),
     db_path: Path | None = typer.Option(None, "--db-path"),
+    trace: bool = typer.Option(False, "--trace", help="Enable local tracing for API requests."),
 ) -> None:
     """Run the GenAIScope REST API server."""
 
@@ -777,9 +848,10 @@ def serve_api(
         raise typer.Exit(code=1) from e
 
     store = _build_store(backend, redis_url, namespace, db_path, embedder)
+    tracer = _build_tracer(trace, backend, redis_url, namespace, db_path)
     auth_enabled = auth == "bearer"
     console.print(f"[bold green]GenAIScope REST API starting on {host}:{port}[/bold green]")
-    run_api_server(store, host=host, port=port, auth_enabled=auth_enabled)
+    run_api_server(store, host=host, port=port, auth_enabled=auth_enabled, tracer=tracer)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

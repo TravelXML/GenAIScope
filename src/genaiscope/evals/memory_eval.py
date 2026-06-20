@@ -33,7 +33,7 @@ _SAMPLE_DATASET = EvalDataset(
 )
 
 
-def _compute_metrics(
+def compute_metrics(
     results_per_query: list[list[str]],
     expected_per_query: list[list[str]],
     top_k: int,
@@ -111,7 +111,7 @@ def run_eval(
 
             store.close()
 
-        recall, precision, mrr = _compute_metrics(results_per_query, expected_per_query, top_k)
+        recall, precision, mrr = compute_metrics(results_per_query, expected_per_query, top_k)
         report.results.append(
             ModeEvalResult(
                 mode=mode,

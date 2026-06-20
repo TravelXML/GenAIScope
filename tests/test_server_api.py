@@ -95,6 +95,49 @@ def test_get_delete(tmp_path) -> None:
 
 
 @pytest.mark.skipif(not _fastapi_available, reason="fastapi not installed")
+def test_middleware_records_trace_on_success(tmp_path) -> None:
+    from genaiscope.memory.factory import MemoryStore
+    from genaiscope.server.app import create_app
+    from genaiscope.tracing import LocalTracer
+
+    store = MemoryStore(db_path=tmp_path / "m.db")
+    tracer = LocalTracer(db_path=tmp_path / "traces.db")
+    client = TestClient(create_app(store, tracer=tracer))
+
+    resp = client.get("/health")
+    assert resp.status_code == 200
+
+    traces = tracer.list()
+    assert len(traces) == 1
+    assert traces[0].provider == "rest"
+    assert traces[0].status == "success"
+    assert traces[0].metadata.get("status_code") == 200
+    store.close()
+    tracer.close()
+
+
+@pytest.mark.skipif(not _fastapi_available, reason="fastapi not installed")
+def test_middleware_records_trace_on_404(tmp_path) -> None:
+    from genaiscope.memory.factory import MemoryStore
+    from genaiscope.server.app import create_app
+    from genaiscope.tracing import LocalTracer
+
+    store = MemoryStore(db_path=tmp_path / "m.db")
+    tracer = LocalTracer(db_path=tmp_path / "traces.db")
+    client = TestClient(create_app(store, tracer=tracer))
+
+    resp = client.get("/v1/memory/does-not-exist")
+    assert resp.status_code == 404
+
+    traces = tracer.list()
+    assert len(traces) == 1
+    assert traces[0].status == "error"
+    assert traces[0].metadata.get("status_code") == 404
+    store.close()
+    tracer.close()
+
+
+@pytest.mark.skipif(not _fastapi_available, reason="fastapi not installed")
 def test_auth_rejected(tmp_path) -> None:
     import os
 

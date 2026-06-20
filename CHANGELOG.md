@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-20
+
+Release theme: **Memory Compaction + Automatic Observability**
+
+### Added
+
+- **Semantic memory compaction** (`genaiscope.memory.compaction`): clusters near-duplicate
+  memories by embedding cosine similarity (catching paraphrases that text-based dedupe misses)
+  and merges each cluster into one memory, either deterministically (`keep_best`) or via an
+  LLM-assisted `summarizer` callable. Reports tokens/$ saved per future context injection.
+- `genaiscope memory compact` CLI command (`--apply/--dry-run`, `--strategy`, `--threshold`,
+  `--summarizer none|openai|anthropic|gemini`).
+- `genaiscope.adapters.openai_summarizer` / `anthropic_summarizer` / `gemini_summarizer` — thin
+  provider-agnostic factories producing a merge-callable for compaction's synthesis strategy.
+- `BaseVectorStore.get_vector(vector_id)` (with `LocalVectorStore`/`RedisVectorStore`
+  implementations) to fetch an already-stored embedding without re-embedding.
+- `genaiscope.evals.memory_eval.compute_metrics` made public so callers (including the new
+  compaction regression tests) can compute recall@k/precision@k/MRR directly.
+- **Automatic observability**: `OpenAIAdapter`/`AnthropicAdapter`/`GeminiAdapter`,
+  `genaiscope serve mcp`, and `genaiscope serve api` now accept an optional `tracer` (CLI:
+  `--trace`) and automatically record latency, real token usage, estimated cost, and
+  success/error status for every call into GenAIScope's existing local tracing store — no
+  manual instrumentation required. Defaults to off; zero behavior change when not configured.
+
+### Known limitations
+
+- Trace cost is `$0.00` for most real provider model strings, since `CostAnalyzer`'s pricing
+  table only matches short aliases (`"gpt-4"`, `"claude-3-sonnet"`, `"gemini-pro"`), not real
+  model identifiers (e.g. `"gpt-4o-mini-2024-07-18"`). Latency/tokens/status are unaffected.
+
 ## [0.4.0] - 2026-06-16
 
 Release theme: **Universal Memory Access** — Embeddings + Vector Search + MCP Memory Server + REST API + Provider Adapters

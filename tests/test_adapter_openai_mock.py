@@ -1,6 +1,5 @@
 """OpenAI adapter tests using a mock client — no API key needed."""
 
-import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -9,6 +8,7 @@ import pytest
 
 from genaiscope.adapters.openai_adapter import OpenAIAdapter
 from genaiscope.memory.factory import MemoryStore
+from genaiscope.tracing import LocalTracer
 
 
 def _mock_openai_client(reply: str = "mock response"):
@@ -64,6 +64,45 @@ def test_adapter_chat_calls_provider(tmp_path: Path) -> None:
     assert mock_client.chat.completions.create.called
     assert response.choices[0].message.content == "Hello!"
     store.close()
+
+
+def test_adapter_chat_records_trace(tmp_path: Path) -> None:
+    store = MemoryStore(db_path=tmp_path / "m.db")
+    tracer = LocalTracer(db_path=tmp_path / "traces.db")
+    mock_client = _mock_openai_client("Hello!")
+    adapter = OpenAIAdapter(store, mock_client, user_id="u1", store_user_turns=False, tracer=tracer)
+
+    adapter.chat(messages=[{"role": "user", "content": "Say hello"}], model="gpt-4o-mini")
+
+    traces = tracer.list()
+    assert len(traces) == 1
+    assert traces[0].provider == "openai"
+    assert traces[0].status == "success"
+    assert traces[0].latency_ms is not None and traces[0].latency_ms >= 0
+    # the mock response has no .usage, so extraction must degrade to zero, not crash
+    assert traces[0].input_tokens == 0
+    assert traces[0].output_tokens == 0
+    assert traces[0].estimated_cost == 0.0
+    store.close()
+    tracer.close()
+
+
+def test_adapter_chat_trace_records_error_and_propagates(tmp_path: Path) -> None:
+    store = MemoryStore(db_path=tmp_path / "m.db")
+    tracer = LocalTracer(db_path=tmp_path / "traces.db")
+    mock_client = _mock_openai_client()
+    mock_client.chat.completions.create.side_effect = RuntimeError("boom")
+    adapter = OpenAIAdapter(store, mock_client, user_id="u1", store_user_turns=False, tracer=tracer)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        adapter.chat(messages=[{"role": "user", "content": "hi"}], model="gpt-4o-mini")
+
+    traces = tracer.list()
+    assert len(traces) == 1
+    assert traces[0].status == "error"
+    assert "boom" in (traces[0].error or "")
+    store.close()
+    tracer.close()
 
 
 def test_adapter_missing_sdk_raises(tmp_path: Path) -> None:

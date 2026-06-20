@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from genaiscope.tracing import LocalTracer
+
 if TYPE_CHECKING:
     from genaiscope.memory.base import BaseMemoryStore
 
@@ -23,6 +25,7 @@ class MemoryAdapter:
         store_user_turns: bool = True,
         store_assistant_turns: bool = False,
         context_mode: str = "hybrid",
+        tracer: LocalTracer | None = None,
     ) -> None:
         self.memory = memory
         self.client = client
@@ -33,6 +36,7 @@ class MemoryAdapter:
         self.store_user_turns = store_user_turns
         self.store_assistant_turns = store_assistant_turns
         self.context_mode = context_mode
+        self.tracer = tracer
 
     def _build_context_block(self, query: str) -> str:
         ctx = self.memory.context(
