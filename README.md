@@ -2,7 +2,7 @@
 
 **Production-ready AI memory, observability, evaluation, safety, and optimization toolkit for GenAI applications.**
 
-GenAIScope is a local-first Python toolkit for AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks. It helps developers, CTOs, and AI engineers identify and fix issues in GenAI applications before production.
+GenAIScope is a local-first Python toolkit for AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks. It helps developers, Tech Leaders, and AI engineers identify and fix issues in GenAI applications before production.
 
 ## Key Features
 
