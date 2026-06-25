@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-06-25
+
+### Fixed
+
+- **REST API route registration crash.** `genaiscope.server.routes_health` and
+  `routes_memory` combined `from __future__ import annotations` with imports made
+  *inside* the `add_*_routes()` functions, so FastAPI/Pydantic could not resolve
+  those names as forward references at route-registration time, raising
+  `PydanticUndefinedAnnotation` from `create_app()` against current FastAPI/Pydantic
+  releases. This also broke `tests/test_server_api.py` (5/7 failing). Fixed by moving
+  the affected imports to module level in both files.
+- **REST API/MCP server SQLite thread-affinity crash.** `SQLiteMemoryStore` and the
+  SQLite-backed `LocalTracer` opened their shared connection with the sqlite3 default
+  `check_same_thread=True`, which raised `sqlite3.ProgrammingError` the first time a
+  request was served from a different thread than the one that created the store —
+  surfaced once the route-registration bug above was fixed, and present since the
+  REST API/MCP server shipped in v0.4.0. Fixed by opening both connections with
+  `check_same_thread=False` (access remains effectively serialized for GenAIScope's
+  single-store-per-server usage pattern).
+
 ## [0.5.0] - 2026-06-20
 
 Release theme: **Memory Compaction + Automatic Observability**
