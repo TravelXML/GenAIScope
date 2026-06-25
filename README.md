@@ -4,7 +4,7 @@
 
 It helps developers understand why LLM outputs fail by capturing prompts, responses, token usage, model behavior, memory usage, context gaps, and recommending better prompts for higher-quality AI results.
 
-GenAIScope is also the broader local-first Python toolkit it always was: AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks (inspection, PII, hallucination/safety analysis, structured-output validation). Context Doctor (v0.6.0) is the newest, most opinionated layer on top of that foundation.
+GenAIScope is also the broader local-first Python toolkit it always was: AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks (inspection, PII, hallucination/safety analysis, structured-output validation). It helps developers, Tech Leaders, and AI engineers identify and fix issues in GenAI applications before production. Context Doctor (v0.6.0) is the newest, most opinionated layer on top of that foundation.
 
 ## What is Context Doctor?
 
