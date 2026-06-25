@@ -50,7 +50,12 @@ class SQLiteMemoryStore(BaseMemoryStore):
         self.db_path = Path(db_path) if db_path else default_db_path()
         self.namespace = normalize_namespace(namespace)
         ensure_parent(self.db_path)
-        self.connection = sqlite3.connect(self.db_path)
+        # check_same_thread=False: the REST API and MCP server share one store
+        # across requests, dispatched via async frameworks (and their test
+        # clients) that may hop threads between calls. Access is still
+        # effectively serialized -- one request at a time per store -- so this
+        # is safe for GenAIScope's usage pattern.
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._embedder = embedder
         self._vector_store = vector_store

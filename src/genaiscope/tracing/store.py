@@ -30,7 +30,10 @@ class SQLiteTraceStore(BaseTraceStore):
         self.db_path = Path(db_path) if db_path else default_db_path()
         self.namespace = normalize_namespace(namespace)
         ensure_parent(self.db_path)
-        self.connection = sqlite3.connect(self.db_path)
+        # check_same_thread=False: this store is shared by the REST API/MCP
+        # server tracer middleware, which may dispatch across threads (and
+        # their test clients do too). See store_sqlite.py for the same fix.
+        self.connection = sqlite3.connect(self.db_path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._create_schema()
 

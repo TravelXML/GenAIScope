@@ -4,20 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import Depends, HTTPException
+from fastapi.responses import JSONResponse
+
+from genaiscope.server.schemas import (
+    ContextRequest,
+    ContextResponse,
+    PromptRequest,
+    RememberRequest,
+    SearchRequest,
+    SearchResultItem,
+)
+
 
 def add_memory_routes(app: Any, store: Any, auth_dep: Any) -> None:
-    from fastapi import Depends, HTTPException
-    from fastapi.responses import JSONResponse
-
-    from genaiscope.server.schemas import (
-        ContextRequest,
-        ContextResponse,
-        PromptRequest,
-        RememberRequest,
-        SearchRequest,
-        SearchResultItem,
-    )
-
     @app.get("/v1/memory/stats")
     async def stats(_: Any = Depends(auth_dep)) -> JSONResponse:
         return JSONResponse(store.stats().model_dump())
