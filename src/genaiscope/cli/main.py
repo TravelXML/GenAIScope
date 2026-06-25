@@ -895,5 +895,173 @@ def eval_memory(
     console.print(table)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Context Doctor commands (v0.6.0)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.command()
+def init(
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Initialize a local GenAIScope workspace."""
+
+    from genaiscope.memory.utils import default_db_path
+
+    target = db_path or default_db_path()
+    memory = MemoryStore(db_path=target, namespace=namespace)
+    tracer = LocalTracer(db_path=target, namespace=namespace)
+    memory.close()
+    tracer.close()
+    console.print(
+        Panel.fit(
+            f"Workspace ready at {target}\n\n"
+            "Next steps:\n"
+            '  genaiscope memory add "..." --type profile_memory\n'
+            '  genaiscope diagnose --prompt "..."\n'
+            "  genaiscope report --out genaiscope_report.html",
+            title="GenAIScope initialized",
+        )
+    )
+
+
+@app.command()
+def diagnose(
+    prompt: str = typer.Option(..., "--prompt", help="The prompt to diagnose."),
+    response: str | None = typer.Option(None, "--response", help="Optional response to evaluate."),
+    provider: str | None = typer.Option(None, "--provider"),
+    model: str | None = typer.Option(None, "--model"),
+    top_k: int = typer.Option(5, "--top-k"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+    embedder: str | None = typer.Option(None, "--embedder"),
+) -> None:
+    """Diagnose a prompt: missing context, health score, and a recommended rewrite."""
+
+    from genaiscope.context import ContextBuilder
+    from genaiscope.doctor import ContextDoctor
+
+    memory = _build_store(backend, redis_url, namespace, db_path, embedder)
+    ctx = ContextBuilder(memory).build(prompt, top_k=top_k)
+    report = ContextDoctor().diagnose(
+        prompt=prompt,
+        response=response,
+        memories_used=ctx.retrieved_memories,
+        provider=provider,
+        model=model,
+    )
+    memory.close()
+
+    console.print(Panel.fit(f"Context Health Score: {report.context_health_score}/100", title="Context Doctor"))
+
+    table = Table(title="Sub-scores")
+    table.add_column("Metric")
+    table.add_column("Score")
+    for field in (
+        "prompt_clarity_score",
+        "context_completeness_score",
+        "memory_match_score",
+        "model_fit_score",
+        "token_efficiency_score",
+        "hallucination_risk_score",
+        "answer_specificity_score",
+    ):
+        table.add_row(field, str(getattr(report, field)))
+    console.print(table)
+
+    console.print(f"[bold]Detected intent:[/bold] {report.detected_intent}")
+    console.print(f"[bold]Recommended model type:[/bold] {report.recommended_model_type}")
+    if report.missing_context:
+        console.print("[yellow]Missing context:[/yellow] " + ", ".join(report.missing_context))
+    if report.prompt_issues:
+        console.print("[red]Prompt issues:[/red] " + ", ".join(report.prompt_issues))
+    console.print(f"\n[bold green]Recommended prompt:[/bold green]\n{report.recommended_prompt}")
+    if report.improvement_tips:
+        console.print("\n[bold]Improvement tips:[/bold]")
+        for tip in report.improvement_tips:
+            console.print(f"  - {tip}")
+
+
+@app.command()
+def analytics(
+    days: int = typer.Option(7, "--days", help="Usage summary window."),
+    pattern_days: int = typer.Option(30, "--pattern-days", help="Prompt pattern window."),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Show token/cost/latency usage and prompt-pattern analytics."""
+
+    from genaiscope.analytics import prompt_patterns, usage_summary
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    tracer = LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+
+    usage = usage_summary(tracer, days=days)
+    table = Table(title=f"Usage summary (last {days} days)")
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_row("Total requests", str(usage.total_requests))
+    table.add_row("Total tokens", str(usage.total_tokens))
+    table.add_row("Estimated cost", f"${usage.total_estimated_cost:.6f}")
+    table.add_row("Average latency (ms)", str(usage.average_latency_ms or "N/A"))
+    console.print(table)
+
+    patterns = prompt_patterns(memory, tracer, days=pattern_days)
+    console.print(f"\n[bold]Top categories:[/bold] {', '.join(patterns.top_topics) or 'none yet'}")
+    if patterns.repeated_weak_patterns:
+        console.print("[yellow]Repeated weak patterns:[/yellow]")
+        for item in patterns.repeated_weak_patterns:
+            console.print(f"  - {item}")
+    if patterns.best_prompt_templates:
+        console.print("[green]Best prompt templates:[/green]")
+        for item in patterns.best_prompt_templates:
+            console.print(f"  - {item}")
+
+    memory.close()
+    tracer.close()
+
+
+@app.command()
+def report(
+    out: Path = typer.Option(Path("genaiscope_report.html"), "--out"),
+    days: int = typer.Option(30, "--days"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Generate the Context Doctor HTML report (distinct from `dashboard generate`)."""
+
+    from genaiscope.report import generate_html
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    tracer = LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    generated = generate_html(out, memory=memory, tracer=tracer, days=days)
+    memory.close()
+    tracer.close()
+    console.print(f"[green]Report generated at {generated}[/green]")
+
+
+@app.command()
+def export(
+    out: Path = typer.Option(Path("genaiscope_export.json"), "--out"),
+    format: str = typer.Option("json", "--format"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Export memories for backup or migration (top-level alias for `memory export`)."""
+
+    memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    count = export_memories(memory, out, format=format)
+    memory.close()
+    console.print(f"[green]Exported {count} memories to {out}[/green]")
+
+
 if __name__ == "__main__":
     app()

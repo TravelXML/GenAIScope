@@ -10,7 +10,7 @@ runner = CliRunner()
 def test_version_command() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "0.5.1" in result.output
+    assert "0.6.0" in result.output
 
 
 def test_embed_test_local() -> None:

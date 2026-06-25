@@ -17,11 +17,14 @@ nav:
   - Quick Start: quickstart.md
   - Installation: installation.md
   - Concepts: concepts.md
+  - Context Doctor: context-doctor.md
   - Production Memory: memory.md
   - Tracing: tracing.md
+  - Analytics: analytics.md
   - Semantic Cache: semantic-cache.md
   - CLI Reference: cli.md
   - API Reference: api-reference.md
+  - Examples: examples.md
   - Recipes:
     - Prompt Inspection: recipes/prompt-inspection.md
     - RAG Inspection: recipes/rag-inspection.md

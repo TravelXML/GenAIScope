@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-25
+
+Release theme: **Context Doctor** — memory + tracing + rule-based prompt/context health
+diagnosis and improvement.
+
+### Added
+
+- **`GenAIScope` facade** (`genaiscope.core.scope`, exported from `genaiscope` and
+  `genaiscope.core`): one shared local store behind `scope.memory`, `scope.context`,
+  `scope.doctor`, `scope.cost`, `scope.analytics`, `scope.router`, and `scope.report`.
+  `scope.trace(...)` (context manager) and `scope.log_interaction(...)` log prompt/response
+  interactions with provider/model/category/tags/scope ids, automatically attaching a Context
+  Doctor health score to the trace.
+- **`ContextDoctor`** (`genaiscope.doctor`): rule-based `diagnose()` returning a
+  `context_health_score` (0-100) plus seven sub-scores (prompt clarity, context completeness,
+  memory match, model fit, token efficiency, hallucination risk, answer specificity),
+  detected intent/entities, missing-context list, prompt issues, a recommended prompt rewrite,
+  recommended model type, and improvement tips. No LLM call required.
+- **`ContextBuilder`** (`genaiscope.context`): retrieves relevant memory and returns
+  `retrieved_memories`, `context_text`, an `improved_prompt`, `token_estimate`,
+  `memory_ids_used`, and a `context_quality_score`.
+- **`CostEstimator`** (`genaiscope.cost`): provider-aware cost estimation (openai, anthropic,
+  google, groq, ollama/local — local models are free unless priced explicitly), with a
+  longest-alias-match pricing lookup so real dated model ids (e.g.
+  `gpt-4o-mini-2024-07-18`) resolve correctly.
+- **Model-type recommendation** (`genaiscope.router.recommend`): classifies a prompt into
+  reasoning/coding/writing/summarization/extraction/local, with privacy- and cost-sensitive
+  provider suggestions. No auto-routing yet, by design.
+- **Usage analytics + prompt patterns** (`genaiscope.analytics`): `usage_summary()`
+  (tokens/cost/latency over a time window) and `prompt_patterns()` (top categories/tags/entities,
+  repeated weak patterns, best-performing prompt templates, per-category health/token/model
+  breakdowns).
+- **Context Doctor HTML report** (`genaiscope.report`), distinct from the existing
+  `genaiscope dashboard`: health-score trend, weak/best prompt patterns, model/provider
+  comparison, recent traces, memory usage.
+- New memory-type constants (`genaiscope.memory.types`): `profile_memory`, `project_memory`,
+  `preference_memory`, `conversation_memory`, `document_memory`, `entity_memory`,
+  `decision_memory`, `learning_memory`, `prompt_pattern_memory` — conventions, not an enforced
+  enum; existing/custom memory types keep working unchanged.
+- New CLI commands: `genaiscope init`, `genaiscope diagnose --prompt "..."`,
+  `genaiscope analytics`, `genaiscope report --out FILE`, and a top-level
+  `genaiscope export --format json --out FILE` alias for `memory export`.
+- New examples `examples/01_basic_trace.py` through `examples/07_cto_copilot_example.py`
+  (the last is a full memory → context → trace → diagnosis → HTML report walkthrough).
+
+### Notes on design
+
+- No new database columns or migrations: `title`/`confidence`/`entities` (memory) and
+  `category`/`tags`/`session_id`/`rating`/diagnosis results (traces) are stored in the existing
+  `metadata` JSON column on `MemoryItem`/`TraceItem`. Existing `.db` files keep working
+  unchanged; analytics/pattern modules group these in Python rather than via SQL `GROUP BY`,
+  which is the intentional trade-off at the local/single-developer scale this layer targets.
+- Reuses the existing embeddings/vector-search stack for memory retrieval (no new vector DB
+  dependency) and the existing `HallucinationDetector`/`CostAnalyzer` for two of the doctor's
+  sub-scores, rather than duplicating that logic.
+- `genaiscope report` (Context Doctor) and `genaiscope dashboard` (memory/file/trace overview)
+  remain two distinct, separately generated HTML artifacts.
+
 ## [0.5.1] - 2026-06-25
 
 ### Fixed

@@ -197,6 +197,48 @@ See [Configuration](../concepts.md#configuration) for all options.
 - `1` - Error or validation failure
 - `2` - Invalid command/arguments
 
+## Context Doctor commands (v0.6.0)
+
+### init
+
+Initialize a local GenAIScope workspace (creates the local SQLite DB).
+
+```bash
+genaiscope init
+```
+
+### diagnose
+
+Diagnose a prompt: missing context, health score, and a recommended rewrite.
+
+```bash
+genaiscope diagnose --prompt "Write answer for feature velocity." --top-k 5
+```
+
+### analytics
+
+Show token/cost/latency usage and repeated prompt patterns.
+
+```bash
+genaiscope analytics --days 7 --pattern-days 30
+```
+
+### report
+
+Generate the Context Doctor HTML report (distinct from `dashboard generate`).
+
+```bash
+genaiscope report --out genaiscope_report.html --days 30
+```
+
+### export
+
+Export memories for backup or migration (top-level alias for `memory export`).
+
+```bash
+genaiscope export --format json --out genaiscope_export.json
+```
+
 ## Output Formats
 
 ### Text (Default)

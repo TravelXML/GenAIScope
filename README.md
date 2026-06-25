@@ -1,11 +1,24 @@
 # GenAIScope
 
-**Production-ready AI memory, observability, evaluation, safety, and optimization toolkit for GenAI applications.**
+**GenAIScope is a lightweight memory, tracing, and context diagnosis toolkit for LLM and Agent applications.**
 
-GenAIScope is a local-first Python toolkit for AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks. It helps developers, CTOs, and AI engineers identify and fix issues in GenAI applications before production.
+It helps developers understand why LLM outputs fail by capturing prompts, responses, token usage, model behavior, memory usage, context gaps, and recommending better prompts for higher-quality AI results.
+
+GenAIScope is also the broader local-first Python toolkit it always was: AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks (inspection, PII, hallucination/safety analysis, structured-output validation). Context Doctor (v0.6.0) is the newest, most opinionated layer on top of that foundation.
+
+## What is Context Doctor?
+
+**GenAIScope Context Doctor is a lightweight memory, tracing, and prompt diagnosis layer for LLM and Agent applications. It captures prompts, responses, token usage, model behavior, memory usage, context gaps, and recommends better prompts for higher-quality AI outputs.**
+
+Every LLM interaction can produce an answer *plus* a health report: memory used, prompt quality, context gaps, token usage, cost, latency, model fit, hallucination risk, and a suggested better prompt — computed locally with rule-based heuristics, no extra LLM call required.
+
+## Why memory + tracing + diagnosis matters
+
+Weak LLM answers are usually a *context* problem, not a model problem: the prompt didn't say who the answer is for, how long it should be, or what background the user already has on file. Context Doctor turns "the answer was mediocre" into a concrete, actionable diagnosis — what's missing, why, and exactly how to rewrite the prompt — by combining three things GenAIScope already does well: local memory, local tracing, and rule-based scoring.
 
 ## Key Features
 
+- **Context Doctor (v0.6.0)** - Rule-based health score, missing-context detection, and a recommended prompt rewrite for every LLM interaction
 - **One-line APIs for beginners** - Easy to use for quick checks
 - **Deep inspection APIs** - Advanced capabilities for engineering teams
 - **CLI-first experience** - Interact via command line or Python
@@ -55,6 +68,60 @@ pip install genaiscope[docs]
 # Everything
 pip install genaiscope[all]
 ```
+
+## Context Doctor: 5-Minute Quickstart
+
+```python
+from genaiscope import GenAIScope
+
+scope = GenAIScope(db_path="genaiscope.db")
+
+# 1. Teach it who you are and what you've worked on (one-time setup)
+scope.memory.add(
+    memory_type="profile_memory",
+    content="Sapan is a CTO / VP Engineering leader with TravelTech experience.",
+    tags=["profile", "cto", "traveltech"],
+)
+scope.memory.add(
+    memory_type="project_memory",
+    content="Led the TravelTech platform rebuild focused on feature velocity and roadmap execution.",
+    tags=["traveltech", "project"],
+)
+
+# 2. Ask a deliberately weak prompt
+weak_prompt = "Write answer for feature velocity."
+
+# 3. Get an improved prompt built from your own memory
+context = scope.context.build(weak_prompt, top_k=5)
+print(context.improved_prompt)
+
+# 4. Log the real interaction and get a health report
+response = "Feature velocity is how fast a team ships value."
+report = scope.doctor.diagnose(prompt=weak_prompt, response=response, memories_used=context.retrieved_memories)
+print(report.context_health_score, report.missing_context, report.recommended_prompt)
+
+# 5. Generate an HTML report you can open in a browser
+scope.report.generate_html("genaiscope_report.html")
+```
+
+### Example output
+
+```text
+Context Health Score: 61/100
+Missing context: ['Target audience', 'Desired answer length or format', 'Tone preference', 'Business context (impact, outcomes)']
+Recommended prompt: Using your background (Sapan is a CTO / VP Engineering leader with
+TravelTech experience; ...), write answer for feature velocity. Keep it concise and
+well-structured. Use a senior, professional tone. Connect it to business impact and outcomes.
+```
+
+### Dashboard / report screenshot
+
+> _Run `genaiscope report --out genaiscope_report.html` and open it in a browser --
+> screenshot placeholder, contributions of a real screenshot welcome._
+
+See `examples/07_cto_copilot_example.py` for the full end-to-end walkthrough (memory →
+context → trace → diagnosis → HTML report), and [docs/context-doctor.md](docs/context-doctor.md)
+for the complete field reference.
 
 ## Quick Start
 
@@ -220,7 +287,25 @@ genaiscope memory search "concise answers"
 genaiscope files add README.md
 genaiscope trace stats
 genaiscope dashboard generate
+
+# v0.6.0 Context Doctor
+genaiscope init
+genaiscope memory add "User profile" --type profile_memory --tags profile,cto
+genaiscope diagnose --prompt "Write answer for this job"
+genaiscope analytics
+genaiscope report --out genaiscope_report.html
+genaiscope export --format json --out genaiscope_export.json
 ```
+
+### Context Doctor CLI commands
+
+| Command | Description |
+|---|---|
+| `genaiscope init` | Initialize a local GenAIScope workspace |
+| `genaiscope diagnose --prompt "..."` | Health score, missing context, and a recommended rewrite for a prompt |
+| `genaiscope analytics [--days N]` | Token/cost/latency usage summary + repeated prompt patterns |
+| `genaiscope report --out FILE` | Generate the Context Doctor HTML report |
+| `genaiscope export --format json --out FILE` | Export memories (alias for `memory export`) |
 
 ## v0.3.0 Roadmap Notes
 
@@ -433,23 +518,23 @@ genaiscope/
 ├── src/genaiscope/         # Package source
 │   ├── __init__.py
 │   ├── version.py
-│   ├── cli.py              # CLI interface
 │   ├── inspect.py          # Main inspector
 │   ├── analyzers.py        # Specialized analyzers
 │   ├── scoring.py          # Scoring engine
-│   └── core/               # Core modules
-│       ├── config.py
-│       ├── models.py
-│       ├── errors.py
-│       ├── providers.py
-│       ├── logging.py
-│       ├── result.py
-│       └── core_inspect.py
-└── tests/                  # Test suite
-    ├── test_models.py
-    ├── test_analyzers.py
-    ├── test_inspect.py
-    └── test_scoring.py
+│   ├── cli/                # Typer CLI (entry point: cli/main.py)
+│   ├── core/                # Config, errors, models, GenAIScope facade (scope.py)
+│   ├── memory/              # Scoped SQLite/Redis memory, dedupe, export/import
+│   ├── tracing/              # Local trace logging
+│   ├── embeddings/, vector/  # Pluggable embeddings + vector search
+│   ├── cache/                # Semantic cache
+│   ├── mcp/, server/, adapters/  # MCP memory server, REST API, provider adapters
+│   ├── evals/                # Memory retrieval eval harness
+│   ├── dashboard/             # Static memory/file/trace HTML dashboard
+│   ├── context/, doctor/      # v0.6.0: ContextBuilder, ContextDoctor
+│   ├── cost/, router/         # v0.6.0: CostEstimator, model-type recommender
+│   ├── analytics/, report/    # v0.6.0: usage/pattern analytics, Context Doctor HTML report
+│   └── files/                 # File memory (TXT/MD/JSON/CSV)
+└── tests/                  # Test suite (one file per module, see tests/)
 ```
 ## ALL Scripts
 
@@ -496,6 +581,22 @@ Quick test command:
 pip install -e ".[dev]"
 pytest tests/ -v
 ```
+
+## Roadmap
+
+**v0.6.0 (current)** — Context Doctor: memory + tracing + rule-based health scoring, prompt
+improvement, usage analytics, prompt-pattern analysis, model-type recommendation, and a local
+HTML report.
+
+**v0.7.0 (planned)**:
+- MCP server support (already shipped in v0.4.0 for memory; extending Context Doctor tools)
+- Browser extension capture
+- Multi-provider live LLM gateway
+- Advanced semantic memory
+- Agent evaluation workflows
+- LangChain / LlamaIndex integration
+- Langfuse export
+- OpenTelemetry support
 
 ## Contributing
 
