@@ -201,6 +201,7 @@ class SQLiteMemoryStore(BaseMemoryStore):
         query: str,
         limit: int = 10,
         mode: str = "hybrid",
+        rerank: bool = False,
         **filters: Any,
     ) -> list[MemorySearchResult]:
         """Search non-expired memories."""
@@ -216,6 +217,7 @@ class SQLiteMemoryStore(BaseMemoryStore):
             requested_scopes={scope: filters.get(scope) for scope in SCOPES},
             embedder=self._embedder,
             vector_store=self._vector_store,
+            rerank=rerank,
         )
 
     def context(

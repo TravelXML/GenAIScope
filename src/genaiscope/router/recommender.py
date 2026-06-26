@@ -1,4 +1,6 @@
-"""Model-type recommendation (no auto-routing yet, per the v0.6.0 MVP scope)."""
+"""Model-type recommendation. Offline classification only -- auto-routing to a
+live provider call lives in `genaiscope.gateway` (v0.7.0), which calls
+`recommend()` for its candidate provider list."""
 
 from __future__ import annotations
 

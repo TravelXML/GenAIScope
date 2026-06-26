@@ -295,6 +295,11 @@ genaiscope diagnose --prompt "Write answer for this job"
 genaiscope analytics
 genaiscope report --out genaiscope_report.html
 genaiscope export --format json --out genaiscope_export.json
+
+# v0.7.0 -- live gateway, MCP Context Doctor tools, Langfuse export
+genaiscope ask "Refactor this function and explain the bug" --provider auto
+genaiscope export --format langfuse --out genaiscope_traces.json
+genaiscope serve mcp --trace  # exposes doctor_diagnose, analytics_*, report_generate too
 ```
 
 ### Context Doctor CLI commands
@@ -305,7 +310,16 @@ genaiscope export --format json --out genaiscope_export.json
 | `genaiscope diagnose --prompt "..."` | Health score, missing context, and a recommended rewrite for a prompt |
 | `genaiscope analytics [--days N]` | Token/cost/latency usage summary + repeated prompt patterns |
 | `genaiscope report --out FILE` | Generate the Context Doctor HTML report |
-| `genaiscope export --format json --out FILE` | Export memories (alias for `memory export`) |
+| `genaiscope export --format json\|jsonl\|langfuse --out FILE` | Export memories, or traces in Langfuse batch-ingestion format |
+| `genaiscope ask "..." [--provider auto\|openai\|anthropic\|google]` | Call a live LLM provider (auto-routed by default), logged with a health score |
+
+### Browser Extension
+
+`browser-extension/` captures your prompts and AI replies from ChatGPT, Claude, and Gemini's
+web apps into your local memory store, via the existing `/v1/prompts` and `/v1/memory/remember`
+REST endpoints (no new backend routes). Manual install only for now (load unpacked in Chrome) —
+see `browser-extension/README.md`. Its DOM selectors are unofficial and will need updating
+whenever one of those sites changes its markup.
 
 ## v0.3.0 Roadmap Notes
 
@@ -584,19 +598,24 @@ pytest tests/ -v
 
 ## Roadmap
 
-**v0.6.0 (current)** — Context Doctor: memory + tracing + rule-based health scoring, prompt
+**v0.6.0** — Context Doctor: memory + tracing + rule-based health scoring, prompt
 improvement, usage analytics, prompt-pattern analysis, model-type recommendation, and a local
 HTML report.
 
-**v0.7.0 (planned)**:
-- MCP server support (already shipped in v0.4.0 for memory; extending Context Doctor tools)
-- Browser extension capture
-- Multi-provider live LLM gateway
-- Advanced semantic memory
-- Agent evaluation workflows
-- LangChain / LlamaIndex integration
-- Langfuse export
-- OpenTelemetry support
+**v0.7.0 (current)**:
+- MCP tools for Context Doctor (`doctor_diagnose`, `analytics_usage_summary`,
+  `analytics_prompt_patterns`, `report_generate`), alongside the v0.4.0 memory tools
+- Multi-provider live LLM gateway (`scope.gateway` / `genaiscope ask`) — auto-routes to a real
+  OpenAI/Anthropic/Google call using `genaiscope.router.recommend()`, with fallback across
+  candidates and an attached Context Doctor health score
+- Cross-encoder reranking for hybrid memory search (`rerank=True`)
+- Agent evaluation workflows (`genaiscope.evals.run_agent_eval`)
+- LangChain (`GenAIScopeChatMessageHistory`) and LlamaIndex (`GenAIScopeMemory`) integrations
+- Langfuse batch export (`genaiscope export --format langfuse`)
+- OpenTelemetry exporter hook on `LocalTracer` (`genaiscope.integrations.otel.OTelExporter`)
+- Browser extension capture (`browser-extension/`, manual install — see its README)
+
+**v0.7.1 (planned)** — nothing carried over; the full v0.7.0 list above shipped in one release.
 
 ## Contributing
 

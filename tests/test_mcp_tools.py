@@ -1,19 +1,21 @@
 """Tests for MCP tool functions — no live transport needed."""
 
-import tempfile
 from pathlib import Path
 
-import pytest
-
-from genaiscope.memory.factory import MemoryStore
 from genaiscope.mcp.tools import (
+    tool_analytics_prompt_patterns,
+    tool_analytics_usage_summary,
+    tool_doctor_diagnose,
     tool_memory_add_prompt,
     tool_memory_context,
     tool_memory_list,
     tool_memory_remember,
     tool_memory_search,
     tool_memory_stats,
+    tool_report_generate,
 )
+from genaiscope.memory.factory import MemoryStore
+from genaiscope.tracing import LocalTracer
 
 
 def _store(tmp_path: Path):
@@ -71,3 +73,46 @@ def test_tool_stats(tmp_path: Path) -> None:
     assert "total_memories" in result
     assert result["total_memories"] >= 1
     store.close()
+
+
+def test_tool_doctor_diagnose(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    result = tool_doctor_diagnose(store, prompt="Write answer for feature velocity.")
+    assert "context_health_score" in result
+    assert "recommended_prompt" in result
+    store.close()
+
+
+def test_tool_analytics_usage_summary_without_tracer() -> None:
+    result = tool_analytics_usage_summary(None, days=7)
+    assert result == {
+        "error": "Tracing is not enabled on this server. Restart with --trace to use this tool."
+    }
+
+
+def test_tool_analytics_usage_summary_with_tracer(tmp_path: Path) -> None:
+    tracer = LocalTracer(db_path=tmp_path / "t.db")
+    tracer.log(name="chat", input_tokens=10, output_tokens=5)
+    result = tool_analytics_usage_summary(tracer, days=7)
+    assert result["total_requests"] >= 1
+    tracer.close()
+
+
+def test_tool_analytics_prompt_patterns_with_tracer(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    tracer = LocalTracer(db_path=tmp_path / "t.db")
+    result = tool_analytics_prompt_patterns(store, tracer, days=30)
+    assert "top_topics" in result
+    store.close()
+    tracer.close()
+
+
+def test_tool_report_generate_with_tracer(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    tracer = LocalTracer(db_path=tmp_path / "t.db")
+    out = tmp_path / "report.html"
+    result = tool_report_generate(store, tracer, out=str(out), days=30)
+    assert result["path"] == str(out)
+    assert out.exists()
+    store.close()
+    tracer.close()

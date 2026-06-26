@@ -63,3 +63,19 @@ class ProviderDependencyMissingError(BackendNotAvailableError):
 
 class AdapterError(GenAIScopeError):
     """Raised when a provider adapter encounters an unrecoverable error."""
+
+
+class GatewayError(GenAIScopeError):
+    """Raised when no candidate provider could complete a gateway request."""
+
+
+class OTelDependencyMissingError(BackendNotAvailableError):
+    """Raised when the otel extra (opentelemetry-sdk/api) is not installed."""
+
+
+class LangChainDependencyMissingError(BackendNotAvailableError):
+    """Raised when the langchain extra (langchain-core) is not installed."""
+
+
+class LlamaIndexDependencyMissingError(BackendNotAvailableError):
+    """Raised when the llamaindex extra (llama-index-core) is not installed."""

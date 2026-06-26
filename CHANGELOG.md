@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-06-26
+
+Release theme: full v0.7.0 roadmap — MCP tools for Context Doctor, a multi-provider live LLM
+gateway, cross-encoder reranking, agent evaluation workflows, LangChain/LlamaIndex integrations,
+Langfuse export, OpenTelemetry support, and a browser extension.
+
+### Added
+
+- **MCP tools for Context Doctor** (`genaiscope.mcp.tools`, `genaiscope.mcp.server`):
+  `doctor_diagnose`, `analytics_usage_summary`, `analytics_prompt_patterns`, `report_generate`,
+  alongside the 6 memory tools shipped in v0.4.0. The 3 trace-dependent tools return a plain
+  `{"error": ...}` dict (not an exception) if the MCP server was started without `--trace`.
+- **Multi-provider live LLM gateway** (`genaiscope.gateway`, `scope.gateway`, `genaiscope ask`):
+  connects `genaiscope.router.recommend()` (offline provider/model-type suggestion) to the
+  existing `OpenAIAdapter`/`AnthropicAdapter`/`GeminiAdapter` live SDK calls. `provider="auto"`
+  tries `recommend()`'s candidate providers in order, falling back on failure, and raises a new
+  `GatewayError` if none succeed. Each call is logged as exactly one trace with an automatically
+  attached Context Doctor health score — the first time a real LLM response gets diagnosed
+  end-to-end. Only `openai`/`anthropic`/`google` (alias `gemini`) have a live adapter; other
+  router suggestions (`groq`/`local`/`ollama`) are skipped.
+- **Cross-encoder reranking** (`genaiscope.memory.rerank.CrossEncoderReranker`): opt-in
+  `rerank=True` on `MemoryStore.search()` / `ContextBuilder.build()` / the MCP `memory_search`
+  tool runs hybrid search over a larger candidate pool, then reranks with
+  `cross-encoder/ms-marco-MiniLM-L-6-v2`, blended with each candidate's existing fused score.
+  Reuses the `sentence-transformers` dependency already declared by the `embeddings` extra — no
+  new dependency.
+- **Agent evaluation workflows** (`genaiscope.evals.run_agent_eval`, `AgentTrajectory`,
+  `AgentStep`): runs a multi-step agent trajectory against a user-provided callable, scoring
+  per-step pass/fail and latency. Library API only (no CLI command — `agent_fn` is a Python
+  callable, not something a CLI flag can express). If a `LocalTracer` is given, each step is
+  logged with a shared `metadata["task_id"]` for trajectory correlation — no schema change.
+- **LangChain integration** (`genaiscope.integrations.langchain.GenAIScopeChatMessageHistory`):
+  implements `langchain_core.chat_history.BaseChatMessageHistory` backed by a GenAIScope
+  `MemoryStore`, verified against the installed `langchain-core` ABC.
+- **LlamaIndex integration** (`genaiscope.integrations.llamaindex.GenAIScopeMemory`): implements
+  `llama_index.core.memory.types.BaseMemory`, verified against the installed
+  `llama-index-core` ABC.
+- **Langfuse batch export** (`genaiscope.export.export_langfuse`, `genaiscope export --format
+  langfuse`): writes a JSON file matching Langfuse's documented `POST /api/public/ingestion`
+  batch-event shape (`trace-create` + `generation-create` events) — no network call, no
+  `langfuse` package dependency.
+- **OpenTelemetry exporter hook** (`genaiscope.integrations.otel.OTelExporter`,
+  `LocalTracer(exporters=[...])`): maps each logged `TraceItem` to a real OTel span using the
+  `gen_ai.*` semantic-convention attribute names, through whatever global `TracerProvider` the
+  host application has configured. An exporter failure never breaks local tracing.
+- **Browser extension** (`browser-extension/`, manual install): captures prompts/replies from
+  ChatGPT, Claude, and Gemini's web apps via the existing `/v1/prompts` and `/v1/memory/remember`
+  REST endpoints — no new backend routes. DOM selectors are unofficial and will need updating
+  whenever a site's markup changes.
+- New optional extras: `otel`, `langchain`, `llamaindex` (added to `all`).
+
+### Notes on design
+
+- No database/schema migrations: gateway traces, agent-eval task correlation, and LangChain/
+  LlamaIndex message roles are all carried in the existing `metadata` JSON column, the same
+  convention v0.6.0 established for `title`/`entities`/`confidence`/category/tags/session_id.
+- The gateway reuses the existing tracer that `serve_mcp`/`serve_api` already build from the same
+  backend/db_path/namespace as the memory store, rather than opening a second connection.
+
 ## [0.6.0] - 2026-06-25
 
 Release theme: **Context Doctor** — memory + tracing + rule-based prompt/context health

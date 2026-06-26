@@ -207,6 +207,12 @@ class GenAIScope:
         return _ScopeRouter()
 
     @property
+    def gateway(self) -> Any:
+        from genaiscope.gateway import GatewayClient
+
+        return GatewayClient(self._store, self._tracer)
+
+    @property
     def analytics(self) -> Any:
         from genaiscope.analytics import AnalyticsEngine
 

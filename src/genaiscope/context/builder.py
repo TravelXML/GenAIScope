@@ -40,6 +40,7 @@ class ContextBuilder:
         project_id: str | None = None,
         workspace_id: str | None = None,
         max_chars: int | None = None,
+        rerank: bool = False,
     ) -> ContextBuildResult:
         """Retrieve relevant memory and build context_text/improved_prompt."""
 
@@ -55,6 +56,7 @@ class ContextBuilder:
             user_id=user_id,
             project_id=project_id,
             workspace_id=workspace_id,
+            rerank=rerank,
         )
 
         retrieved: list[dict[str, Any]] = []

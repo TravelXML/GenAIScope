@@ -111,11 +111,14 @@ class RedisMemoryStore(BaseMemoryStore):
         items.sort(key=lambda item: item.created_at, reverse=True)
         return items[offset : offset + limit]
 
-    def search(self, query: str, limit: int = 10, mode: str = "hybrid", **filters: Any) -> list[MemorySearchResult]:
+    def search(
+        self, query: str, limit: int = 10, mode: str = "hybrid", rerank: bool = False, **filters: Any
+    ) -> list[MemorySearchResult]:
         return search_memories(
             self.list(limit=1000, **filters), query, limit=limit, mode=mode,
             memory_type=filters.get("memory_type"),
             requested_scopes={scope: filters.get(scope) for scope in SCOPES},
+            rerank=rerank,
         )
 
     def context(

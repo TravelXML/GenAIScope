@@ -1047,15 +1047,65 @@ def report(
 
 
 @app.command()
-def export(
-    out: Path = typer.Option(Path("genaiscope_export.json"), "--out"),
-    format: str = typer.Option("json", "--format"),
+def ask(
+    prompt: str = typer.Argument(..., help="The prompt to send to a live LLM provider."),
+    provider: str = typer.Option("auto", "--provider", "-p", help="auto|openai|anthropic|google"),
+    model: str | None = typer.Option(None, "--model"),
+    cost_sensitive: bool = typer.Option(False, "--cost-sensitive"),
+    privacy_sensitive: bool = typer.Option(False, "--privacy-sensitive"),
     db_path: Path | None = typer.Option(None, "--db-path"),
     backend: str = typer.Option("sqlite", "--backend"),
     redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
     namespace: str = typer.Option("genaiscope", "--namespace"),
 ) -> None:
-    """Export memories for backup or migration (top-level alias for `memory export`)."""
+    """Call a live LLM provider (auto-routed by default) and log the interaction
+    with an attached Context Doctor health score. Requires the providers extra
+    and the relevant *_API_KEY environment variable."""
+
+    from genaiscope.gateway import GatewayClient
+
+    memory = _build_store(backend, redis_url, namespace, db_path, None)
+    tracer = LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+    try:
+        result = GatewayClient(memory, tracer).complete(
+            prompt, provider=provider, model=model,
+            cost_sensitive=cost_sensitive, privacy_sensitive=privacy_sensitive,
+        )
+    except Exception as e:
+        console.print(f"[red]Gateway error: {e}[/red]")
+        raise typer.Exit(code=1) from e
+    finally:
+        memory.close()
+        tracer.close()
+
+    console.print(Panel.fit(result.text, title=f"{result.provider} / {result.model}"))
+    console.print(
+        f"[bold]Context Health Score:[/bold] {result.context_health_score}/100  "
+        f"[bold]Tokens:[/bold] {result.input_tokens}/{result.output_tokens}  "
+        f"[bold]Est. cost:[/bold] ${result.estimated_cost:.6f}"
+    )
+
+
+@app.command()
+def export(
+    out: Path = typer.Option(Path("genaiscope_export.json"), "--out"),
+    format: str = typer.Option("json", "--format", help="json|jsonl|langfuse"),
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    backend: str = typer.Option("sqlite", "--backend"),
+    redis_url: str = typer.Option("redis://localhost:6379", "--redis-url"),
+    namespace: str = typer.Option("genaiscope", "--namespace"),
+) -> None:
+    """Export memories (json/jsonl, alias for `memory export`) or traces as a
+    Langfuse batch-ingestion file (`--format langfuse`)."""
+
+    if format == "langfuse":
+        from genaiscope.export import export_langfuse
+
+        tracer = LocalTracer(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
+        path = export_langfuse(tracer, out)
+        tracer.close()
+        console.print(f"[green]Exported traces to {path} (Langfuse batch-ingestion format)[/green]")
+        return
 
     memory = MemoryStore(db_path=db_path, backend=backend, redis_url=redis_url, namespace=namespace)
     count = export_memories(memory, out, format=format)

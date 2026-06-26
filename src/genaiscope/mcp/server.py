@@ -17,12 +17,16 @@ from typing import Any
 
 from genaiscope.core.errors import MCPDependencyMissingError
 from genaiscope.mcp.tools import (
+    tool_analytics_prompt_patterns,
+    tool_analytics_usage_summary,
+    tool_doctor_diagnose,
     tool_memory_add_prompt,
     tool_memory_context,
     tool_memory_list,
     tool_memory_remember,
     tool_memory_search,
     tool_memory_stats,
+    tool_report_generate,
 )
 
 
@@ -36,7 +40,7 @@ def _require_mcp() -> Any:
         ) from exc
 
 
-def build_mcp_server(store: Any, tracer: Any = None, server_name: str = "GenAIScope Memory") -> Any:
+def build_mcp_server(store: Any, tracer: Any = None, server_name: str = "GenAIScope") -> Any:
     """Build a FastMCP / MCP server object with GenAIScope tools registered."""
     _require_mcp()
 
@@ -103,11 +107,14 @@ def _register_fastmcp(mcp_server: Any, store: Any, tracer: Any = None) -> None:
         memory_type: str | None = None,
         limit: int = 10,
         mode: str = "hybrid",
+        rerank: bool = False,
     ) -> dict:
-        """Search memories by keyword, vector, or hybrid scoring."""
+        """Search memories by keyword, vector, or hybrid scoring. rerank=True
+        applies a cross-encoder over a larger candidate pool first (requires
+        the embeddings extra)."""
         kw: dict[str, Any] = {
             "user_id": user_id, "project_id": project_id, "workspace_id": workspace_id,
-            "limit": limit, "mode": mode,
+            "limit": limit, "mode": mode, "rerank": rerank,
         }
         if memory_type:
             kw["memory_type"] = memory_type
@@ -159,17 +166,54 @@ def _register_fastmcp(mcp_server: Any, store: Any, tracer: Any = None) -> None:
         """Return aggregate memory statistics."""
         return _traced("memory_stats", tool_memory_stats, store)
 
+    @mcp_server.tool()
+    def doctor_diagnose(
+        prompt: str,
+        response: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        top_k: int = 5,
+    ) -> dict:
+        """Diagnose a prompt: health score, missing context, recommended rewrite."""
+        return _traced(
+            "doctor_diagnose", tool_doctor_diagnose, store, prompt,
+            response=response, provider=provider, model=model, top_k=top_k,
+        )
+
+    @mcp_server.tool()
+    def analytics_usage_summary(days: int = 7) -> dict:
+        """Token/cost/latency usage summary over the last N days."""
+        return _traced("analytics_usage_summary", tool_analytics_usage_summary, tracer, days=days)
+
+    @mcp_server.tool()
+    def analytics_prompt_patterns(days: int = 30) -> dict:
+        """Repeated weak/best prompt patterns over the last N days."""
+        return _traced(
+            "analytics_prompt_patterns", tool_analytics_prompt_patterns, store, tracer, days=days
+        )
+
+    @mcp_server.tool()
+    def report_generate(out: str = "genaiscope_report.html", days: int = 30) -> dict:
+        """Generate the Context Doctor HTML report and return its path."""
+        return _traced(
+            "report_generate", tool_report_generate, store, tracer, out=out, days=days
+        )
+
 
 def _tool_definitions() -> list[Any]:
     from mcp.types import Tool
 
     return [
         Tool(name="memory_remember", description="Store a memory.", inputSchema={"type": "object", "properties": {"content": {"type": "string"}, "user_id": {"type": "string"}, "project_id": {"type": "string"}, "memory_type": {"type": "string"}, "importance": {"type": "integer"}, "ttl_days": {"type": "integer"}}, "required": ["content"]}),
-        Tool(name="memory_search", description="Search memories.", inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "user_id": {"type": "string"}, "project_id": {"type": "string"}, "limit": {"type": "integer"}, "mode": {"type": "string"}}, "required": ["query"]}),
+        Tool(name="memory_search", description="Search memories.", inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "user_id": {"type": "string"}, "project_id": {"type": "string"}, "limit": {"type": "integer"}, "mode": {"type": "string"}, "rerank": {"type": "boolean"}}, "required": ["query"]}),
         Tool(name="memory_context", description="Return injectable context block.", inputSchema={"type": "object", "properties": {"query": {"type": "string"}, "user_id": {"type": "string"}, "project_id": {"type": "string"}, "limit": {"type": "integer"}, "max_chars": {"type": "integer"}}, "required": ["query"]}),
         Tool(name="memory_add_prompt", description="Store a prompt with quality analysis.", inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "user_id": {"type": "string"}}, "required": ["prompt"]}),
         Tool(name="memory_list", description="List recent memories.", inputSchema={"type": "object", "properties": {"user_id": {"type": "string"}, "limit": {"type": "integer"}}}),
         Tool(name="memory_stats", description="Return memory statistics.", inputSchema={"type": "object", "properties": {}}),
+        Tool(name="doctor_diagnose", description="Diagnose a prompt: health score, missing context, recommended rewrite.", inputSchema={"type": "object", "properties": {"prompt": {"type": "string"}, "response": {"type": "string"}, "provider": {"type": "string"}, "model": {"type": "string"}, "top_k": {"type": "integer"}}, "required": ["prompt"]}),
+        Tool(name="analytics_usage_summary", description="Token/cost/latency usage summary.", inputSchema={"type": "object", "properties": {"days": {"type": "integer"}}}),
+        Tool(name="analytics_prompt_patterns", description="Repeated weak/best prompt patterns.", inputSchema={"type": "object", "properties": {"days": {"type": "integer"}}}),
+        Tool(name="report_generate", description="Generate the Context Doctor HTML report.", inputSchema={"type": "object", "properties": {"out": {"type": "string"}, "days": {"type": "integer"}}}),
     ]
 
 
@@ -181,6 +225,10 @@ def _dispatch(store: Any, name: str, args: dict, tracer: Any = None) -> Any:
         "memory_add_prompt": lambda: tool_memory_add_prompt(store, **args),
         "memory_list": lambda: tool_memory_list(store, **args),
         "memory_stats": lambda: tool_memory_stats(store),
+        "doctor_diagnose": lambda: tool_doctor_diagnose(store, **args),
+        "analytics_usage_summary": lambda: tool_analytics_usage_summary(tracer, **args),
+        "analytics_prompt_patterns": lambda: tool_analytics_prompt_patterns(store, tracer, **args),
+        "report_generate": lambda: tool_report_generate(store, tracer, **args),
     }
     fn = dispatch.get(name)
     if fn is None:

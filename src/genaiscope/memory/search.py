@@ -60,12 +60,18 @@ def search_memories(
     embedder: BaseEmbedder | None = None,
     vector_store: BaseVectorStore | None = None,
     alpha: float = 0.5,
+    rerank: bool = False,
 ) -> list[MemorySearchResult]:
     """Search memory items and return ranked results.
 
     mode="keyword"  -> deterministic keyword scoring (v0.3.0 behaviour)
     mode="vector"   -> embedding cosine similarity only
     mode="hybrid"   -> fused keyword + vector scores with boosts
+
+    rerank=True runs a cross-encoder over a larger candidate pool before
+    cutting down to `limit` -- opt-in, since it costs a model load + N
+    inference calls per query. Requires sentence-transformers (the existing
+    `embeddings` extra), and raises EmbeddingBackendError if missing.
     """
 
     if not query.strip():
@@ -175,4 +181,10 @@ def search_memories(
             )
         )
 
-    return sorted(results, key=lambda r: r.score, reverse=True)[:limit]
+    ranked = sorted(results, key=lambda r: r.score, reverse=True)
+    if rerank:
+        from genaiscope.memory.rerank import CrossEncoderReranker
+
+        pool = ranked[: max(limit * 2, limit)]
+        return CrossEncoderReranker().rerank(query, pool, top_k=limit)
+    return ranked[:limit]

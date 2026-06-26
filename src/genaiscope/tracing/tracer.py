@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -69,13 +71,28 @@ class TraceSpan:
 class LocalTracer:
     """Lightweight local trace logger."""
 
-    def __init__(self, db_path: str | Path | None = None, backend: str = "sqlite", redis_url: str = "redis://localhost:6379", namespace: str = "genaiscope"):
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        backend: str = "sqlite",
+        redis_url: str = "redis://localhost:6379",
+        namespace: str = "genaiscope",
+        exporters: list[Callable[[TraceItem], None]] | None = None,
+    ):
         self.store = create_trace_store(backend=backend, db_path=db_path, redis_url=redis_url, namespace=namespace)
+        self.exporters = list(exporters or [])
 
     def log(self, *args: Any, **kwargs: Any) -> TraceItem:
-        """Log one trace."""
+        """Log one trace, then fan it out to any registered exporters. An
+        exporter failure is swallowed -- exporting is a side effect and must
+        never break local tracing."""
 
-        return self.store.log(*args, **kwargs)
+        item = self.store.log(*args, **kwargs)
+        for exporter in self.exporters:
+            # exporter failures must never break tracing
+            with contextlib.suppress(Exception):
+                exporter(item)
+        return item
 
     def trace(self, name: str, model: str | None = None, provider: str | None = None) -> TraceSpan:
         """Create a context manager tracing span."""
