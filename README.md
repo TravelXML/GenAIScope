@@ -14,7 +14,7 @@ Every LLM interaction can produce an answer *plus* a health report: memory used,
 
 ## Why memory + tracing + diagnosis matters
 
-Weak LLM answers are usually a *context* problem, not a model problem: the prompt didn't say who the answer is for, how long it should be, or what background the user already has on file. Context Doctor turns "the answer was mediocre" into a concrete, actionable diagnosis — what's missing, why, and exactly how to rewrite the prompt — by combining three things GenAIScope already does well: local memory, local tracing, and rule-based scoring.
+Weak LLM answers are usually a *context* problem, not a model problem: the prompt didn't say who the answer is for, how long it should be, or what background the user already has on file. Context Doctor turns "the answer was mediocre" into a concrete, actionable diagnosis - what's missing, why, and exactly how to rewrite the prompt - by combining three things GenAIScope already does well: local memory, local tracing, and rule-based scoring.
 
 ## Key Features
 
