@@ -1,6 +1,7 @@
 """GenAIScope: Inspect, test, secure, optimize, and operationalize GenAI applications."""
 
-__version__ = "0.7.0"
+from genaiscope.version import __version__
+
 __author__ = "GenAIScope Contributors"
 __license__ = "MIT"
 

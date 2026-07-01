@@ -31,3 +31,6 @@ specification.txt
 
 # Throwaway db used to regenerate examples/dashboard_sample/dashboard.html
 examples/dashboard_sample/demo.db
+
+# mkdocs build output
+site/

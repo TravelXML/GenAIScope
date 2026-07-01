@@ -47,6 +47,16 @@ class PromptRequest(BaseModel):
     project_id: str | None = None
 
 
+class GatewayAskRequest(BaseModel):
+    prompt: str
+    provider: str = "auto"
+    model: str | None = None
+    user_id: str | None = None
+    project_id: str | None = None
+    privacy_sensitive: bool = False
+    cost_sensitive: bool = False
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
