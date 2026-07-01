@@ -2,6 +2,7 @@
 
 from typer.testing import CliRunner
 
+from genaiscope import __version__
 from genaiscope.cli.main import app
 
 runner = CliRunner()
@@ -10,7 +11,7 @@ runner = CliRunner()
 def test_version_command() -> None:
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "0.7.0" in result.output
+    assert __version__ in result.output
 
 
 def test_embed_test_local() -> None:

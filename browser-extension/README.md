@@ -4,6 +4,13 @@ Captures your prompts and AI replies from ChatGPT, Claude, and Gemini's web apps
 your local GenAIScope memory store, via the existing REST API (`/v1/prompts` and
 `/v1/memory/remember` -- no new backend endpoints).
 
+It also has an **"Ask GenAIScope"** panel in the popup that routes a prompt through
+GenAIScope's own live gateway (`POST /v1/gateway/ask`) instead of scraping a
+provider's web UI. The server makes the real OpenAI/Anthropic/Google call with its
+own API keys and logs exactly one trace with a cost estimate and Context Doctor
+health score -- reliable, structured capture, since it's your own code calling a
+documented SDK rather than reverse-engineering someone else's private web app.
+
 ## Known limitation
 
 The DOM selectors in `content.js` are unofficial and **will break** whenever one of
@@ -32,3 +39,16 @@ genaiscope memory list
 
 You should see your prompt and the assistant's reply as `conversation` memories
 (prompts are also scored and stored via `/v1/prompts`).
+
+## Using "Ask GenAIScope"
+
+1. Install `genaiscope[providers]` and set at least one of `OPENAI_API_KEY`,
+   `ANTHROPIC_API_KEY`, or `GOOGLE_API_KEY` in the environment the server runs in.
+2. Start the server with tracing on, so calls get a health score and cost logged:
+   `genaiscope serve api --trace`.
+3. Open the popup, type a prompt under "Ask GenAIScope", pick a provider (or leave
+   "Auto"), and click **Ask**.
+4. Check `genaiscope trace stats` / `genaiscope analytics` to see it logged.
+
+If no provider key is configured, or all candidate providers fail, the popup shows
+the error returned by the server (HTTP 502) instead of a reply.

@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-07-01
+
+Release theme: a REST-exposed live gateway for the browser extension, a browsable dashboard
+sample, and a v0.7.0 end-to-end Colab smoke-test pass with fixes for what it found.
+
+### Added
+
+- **`POST /v1/gateway/ask` REST route** (`genaiscope.server.routes_gateway`): exposes the
+  v0.7.0 multi-provider live gateway (`GatewayClient.complete()` — same auto-routing,
+  fallback, and Context Doctor health score as `scope.gateway`/`genaiscope ask`) over HTTP, so
+  any HTTP client can use it, not just Python callers. Returns the provider's `GatewayError`
+  as an HTTP 502 with the underlying message.
+- **"Ask GenAIScope" browser extension panel** (`browser-extension/popup.html`,
+  `popup.js`): a prompt box, provider selector, and result panel wired to the new REST route.
+  Lets the extension capture *complete, structured* interactions by calling GenAIScope's own
+  gateway with your own API keys, instead of only scraping a chat site's rendered DOM. Additive
+  — the existing ChatGPT/Claude/Gemini DOM-capture (`content.js`/`background.js`) is unchanged.
+- **Sample dashboard** (`examples/dashboard_sample/`): a committed, browsable
+  `dashboard.html` generated from a small demo dataset (memories, a prompt, a file, and traces
+  across OpenAI/Anthropic/Google), plus `populate_demo_data.py` to regenerate it. Linked from
+  `docs/dashboard.md`.
+
+### Fixed
+
+- **CLI test fragility under forced-color environments** (`tests/conftest.py`): Jupyter's
+  ipykernel (and some CI runners) set `FORCE_COLOR`/`CLICOLOR_FORCE` on every subprocess, which
+  made Typer's Rich-based `--help`/`version` output embed ANSI escape codes and broke 4 CLI
+  tests' plain substring assertions (e.g. `"0.7.0" in result.output`). A session-level
+  `conftest.py` now strips those env vars before any test module (and its Typer app) loads.
+  Found by an end-to-end run of the v0.7.0 Colab test notebook under a real Jupyter kernel.
+- **Duplicated `__version__`** (`src/genaiscope/__init__.py`): was hardcoded separately from
+  `genaiscope.version.__version__` instead of importing it, so a version bump could silently
+  update one and not the other. `__init__.py` now imports from `genaiscope.version` directly.
+- **`genaiscope_complete_colab_test_v0_7_0.ipynb`**: added an `INSTALL_SOURCE = "local"` option
+  (test the working copy directly, no git clone) and cells covering every v0.7.0 feature (MCP
+  tools, gateway, reranking, agent eval, LangChain/LlamaIndex, Langfuse export, OpenTelemetry,
+  browser extension). Fixed two side effects the local-mode run exposed: the CLI smoke-test cell
+  now runs with `cwd=WORKDIR` and the install cell now `chdir`s off the repo directory, so
+  running the notebook against a real working copy no longer mutates repo-tracked files
+  (`.genaiscope/memory.db`) that default-constructed `MemoryStore()`/`LocalTracer()` calls write to.
+
+### Notes on design
+
+- No database/schema migrations: the new REST route reuses the existing `GatewayClient`/tracer
+  wiring `genaiscope serve api` already builds; nothing new is stored.
+
 ## [0.7.0] - 2026-06-26
 
 Release theme: full v0.7.0 roadmap — MCP tools for Context Doctor, a multi-provider live LLM

@@ -320,6 +320,12 @@ genaiscope export --format json --out genaiscope_export.json
 genaiscope ask "Refactor this function and explain the bug" --provider auto
 genaiscope export --format langfuse --out genaiscope_traces.json
 genaiscope serve mcp --trace  # exposes doctor_diagnose, analytics_*, report_generate too
+
+# v0.8.0 -- the same live gateway, over REST (used by the browser extension's "Ask" panel)
+genaiscope serve api --trace
+curl -X POST http://127.0.0.1:8000/v1/gateway/ask \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Refactor this function and explain the bug", "provider": "auto"}'
 ```
 
 ### Context Doctor CLI commands
@@ -337,9 +343,14 @@ genaiscope serve mcp --trace  # exposes doctor_diagnose, analytics_*, report_gen
 
 `browser-extension/` captures your prompts and AI replies from ChatGPT, Claude, and Gemini's
 web apps into your local memory store, via the existing `/v1/prompts` and `/v1/memory/remember`
-REST endpoints (no new backend routes). Manual install only for now (load unpacked in Chrome) —
-see `browser-extension/README.md`. Its DOM selectors are unofficial and will need updating
-whenever one of those sites changes its markup.
+REST endpoints. Manual install only for now (load unpacked in Chrome) — see
+`browser-extension/README.md`. Its DOM selectors are unofficial and will need updating whenever
+one of those sites changes its markup.
+
+Its popup also has an **"Ask GenAIScope"** panel (v0.8.0) that routes a prompt through the new
+`POST /v1/gateway/ask` REST route instead: your own server calls OpenAI/Anthropic/Google
+directly with your own API key, so the interaction is captured completely and reliably, rather
+than scraped from a chat site's rendered page after the fact.
 
 ## v0.3.0 Roadmap Notes
 
@@ -625,7 +636,7 @@ pytest tests/ -v
 improvement, usage analytics, prompt-pattern analysis, model-type recommendation, and a local
 HTML report.
 
-**v0.7.0 (current)**:
+**v0.7.0**:
 - MCP tools for Context Doctor (`doctor_diagnose`, `analytics_usage_summary`,
   `analytics_prompt_patterns`, `report_generate`), alongside the v0.4.0 memory tools
 - Multi-provider live LLM gateway (`scope.gateway` / `genaiscope ask`) — auto-routes to a real
@@ -638,7 +649,19 @@ HTML report.
 - OpenTelemetry exporter hook on `LocalTracer` (`genaiscope.integrations.otel.OTelExporter`)
 - Browser extension capture (`browser-extension/`, manual install — see its README)
 
-**v0.7.1 (planned)** — nothing carried over; the full v0.7.0 list above shipped in one release.
+**v0.8.0 (current)**:
+- `POST /v1/gateway/ask` REST route — the v0.7.0 live gateway (auto-routing, fallback, health
+  score), now reachable over HTTP, not just from Python
+- "Ask GenAIScope" panel in the browser extension popup, wired to the new route — captures
+  complete, structured interactions via your own gateway instead of only DOM-scraping a chat
+  site's rendered page (additive to the existing capture)
+- Sample dashboard committed at `examples/dashboard_sample/dashboard.html`, browsable without
+  running anything
+- CLI tests hardened against environments that force ANSI color (Jupyter, some CI runners);
+  `genaiscope.__version__` de-duplicated
+
+**v0.8.1 (planned)** — dashboard visual redesign (raised as feedback: current cards/tables read
+as dense rather than an at-a-glance health check), broader browser-extension site coverage.
 
 ## Contributing
 

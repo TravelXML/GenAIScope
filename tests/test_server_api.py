@@ -163,3 +163,66 @@ def test_auth_rejected(tmp_path) -> None:
         store.close()
     finally:
         os.environ.pop("GENAISCOPE_API_TOKEN", None)
+
+
+@pytest.mark.skipif(not _fastapi_available, reason="fastapi not installed")
+def test_gateway_ask_success(tmp_path) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from genaiscope.memory.factory import MemoryStore
+    from genaiscope.server.app import create_app
+    from genaiscope.tracing import LocalTracer
+
+    store = MemoryStore(db_path=tmp_path / "m.db")
+    tracer = LocalTracer(db_path=tmp_path / "traces.db")
+    client = TestClient(create_app(store, tracer=tracer))
+
+    msg = SimpleNamespace(content="hello from the gateway")
+    choice = SimpleNamespace(message=msg)
+    usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+    openai_response = SimpleNamespace(choices=[choice], usage=usage, model="gpt-4o-mini")
+
+    with patch("genaiscope.adapters.OpenAIAdapter") as mock_adapter:
+        mock_adapter.return_value.chat.return_value = openai_response
+        resp = client.post(
+            "/v1/gateway/ask",
+            json={"prompt": "Refactor this Python function", "provider": "openai"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["text"] == "hello from the gateway"
+    assert data["provider"] == "openai"
+    assert data["context_health_score"] is not None
+
+    # One "rest" middleware trace for the request, one detailed "gateway.complete" trace.
+    traces = tracer.list()
+    assert any(t.name == "gateway.complete" for t in traces)
+    store.close()
+    tracer.close()
+
+
+@pytest.mark.skipif(not _fastapi_available, reason="fastapi not installed")
+def test_gateway_ask_returns_502_when_all_providers_fail(tmp_path) -> None:
+    from unittest.mock import patch
+
+    from genaiscope.memory.factory import MemoryStore
+    from genaiscope.server.app import create_app
+
+    store = MemoryStore(db_path=tmp_path / "m.db")
+    client = TestClient(create_app(store))
+
+    with (
+        patch("genaiscope.adapters.OpenAIAdapter") as mock_openai,
+        patch("genaiscope.adapters.AnthropicAdapter") as mock_anthropic,
+    ):
+        mock_openai.return_value.chat.side_effect = RuntimeError("down")
+        mock_anthropic.return_value.chat.side_effect = RuntimeError("down")
+        resp = client.post(
+            "/v1/gateway/ask",
+            json={"prompt": "Refactor this Python function and fix the bug", "provider": "auto"},
+        )
+
+    assert resp.status_code == 502
+    store.close()

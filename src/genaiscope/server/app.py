@@ -29,6 +29,7 @@ def create_app(store: BaseMemoryStore, auth_enabled: bool = False, tracer: Any =
     from fastapi import FastAPI, Request
 
     from genaiscope.server.auth import make_auth_dependency
+    from genaiscope.server.routes_gateway import add_gateway_routes
     from genaiscope.server.routes_health import add_health_routes
     from genaiscope.server.routes_memory import add_memory_routes
     from genaiscope.version import __version__
@@ -65,6 +66,7 @@ def create_app(store: BaseMemoryStore, auth_enabled: bool = False, tracer: Any =
 
     add_health_routes(app, version=__version__)
     add_memory_routes(app, store=store, auth_dep=auth_dep)
+    add_gateway_routes(app, store=store, tracer=tracer, auth_dep=auth_dep)
 
     return app
 
