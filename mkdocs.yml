@@ -24,6 +24,8 @@ nav:
   - Semantic Cache: semantic-cache.md
   - CLI Reference: cli.md
   - API Reference: api-reference.md
+  - REST API: rest-api.md
+  - Dashboard: dashboard.md
   - Examples: examples.md
   - Recipes:
     - Prompt Inspection: recipes/prompt-inspection.md
