@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GenAIScope Dashboard</title>
+  <style>
+    body { margin:0; font-family: Inter, Arial, sans-serif; color:#17202a; background:#f7f9fb; }
+    header { background:#102033; color:white; padding:28px 36px; }
+    main { max-width:1180px; margin:0 auto; padding:28px; }
+    h1, h2 { margin:0 0 12px; }
+    section { margin:28px 0; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+    .card { background:white; border:1px solid #dde5ee; border-radius:8px; padding:16px; }
+    .card span { display:block; color:#52616f; font-size:13px; }
+    .card strong { display:block; margin-top:8px; font-size:24px; }
+    table { width:100%; border-collapse:collapse; background:white; border:1px solid #dde5ee; }
+    th, td { text-align:left; padding:10px; border-bottom:1px solid #e8eef5; vertical-align:top; }
+    th { background:#edf3f8; }
+    ul { background:white; border:1px solid #dde5ee; border-radius:8px; padding:18px 28px; }
+    .muted { color:#d9e5f2; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>GenAIScope Dashboard</h1>
+    <div class="muted">Version 0.7.0 · Generated 2026-07-01T07:10:23.940596+00:00</div>
+  </header>
+  <main>
+    <section>
+      <h2>Overview</h2>
+      <div class="grid">
+        <div class='card'><span>Total memories</span><strong>6</strong></div>
+        <div class='card'><span>Backend</span><strong>sqlite</strong></div>
+        <div class='card'><span>Namespace</span><strong>genaiscope</strong></div>
+        <div class='card'><span>Total documents</span><strong>1</strong></div>
+        <div class='card'><span>Total prompts</span><strong>2</strong></div>
+        <div class='card'><span>Total traces</span><strong>3</strong></div>
+        <div class='card'><span>Estimated total cost</span><strong>$0.004400</strong></div>
+        <div class='card'><span>Average prompt score</span><strong>25.0</strong></div>
+        <div class='card'><span>Expired memories</span><strong>0</strong></div>
+        <div class='card'><span>Duplicate memories</span><strong>0</strong></div>
+        <div class='card'><span>Semantic cache entries</span><strong>0</strong></div>
+      </div>
+    </section>
+    <section>
+      <h2>Memory Statistics</h2>
+      <table><tr><th>Type</th><th>Count</th></tr><tr><td>document</td><td>1</td></tr><tr><td>prompt</td><td>2</td></tr><tr><td>preference</td><td>1</td></tr><tr><td>project_memory</td><td>1</td></tr><tr><td>profile_memory</td><td>1</td></tr></table>
+      <table><tr><th>Source</th><th>Count</th></tr><tr><td>file</td><td>1</td></tr><tr><td>manual</td><td>5</td></tr></table>
+      <table><tr><th>User</th><th>Count</th></tr><tr><td colspan='2'>No data yet</td></tr></table>
+      <table><tr><th>Project</th><th>Count</th></tr><tr><td colspan='2'>No data yet</td></tr></table>
+      <table><tr><th>Workspace</th><th>Count</th></tr><tr><td colspan='2'>No data yet</td></tr></table>
+    </section>
+    <section>
+      <h2>Prompt Quality Comments</h2>
+      <table><tr><th>Prompt</th><th>Score</th><th>Risk</th><th>Comments</th><th>Suggestions</th><th>Tags</th><th>Created</th></tr><tr><td>Write answer for feature velocity.</td><td>30</td><td>high</td><td>Prompt is very short and may not provide enough context.</td><td>Add a role or persona for the assistant.; Specify the expected output format.; Add constraints such as length, style, exclusions, or allowed sources.; Add success criteria or a quick rubric.</td><td></td><td>2026-07-01T07:10:23.914128+00:00</td></tr><tr><td>Summarize this properly.</td><td>20</td><td>high</td><td>Prompt is very short and may not provide enough context.; Prompt uses vague words: properly.</td><td>Add a role or persona for the assistant.; Specify the expected output format.; Add constraints such as length, style, exclusions, or allowed sources.; Add success criteria or a quick rubric.</td><td></td><td>2026-07-01T07:10:23.909868+00:00</td></tr></table>
+    </section>
+    <section>
+      <h2>File Memory</h2>
+      <div class="grid"><div class='card'><span>Indexed files</span><strong>1</strong></div><div class='card'><span>Total chunks</span><strong>1</strong></div></div>
+      <table><tr><th>File</th><th>Type</th><th>Chunks</th><th>Path</th></tr><tr><td>sample_policy.md</td><td>.md</td><td>1</td><td>/home/sap-ai-plug/CODE/GenAIScope/examples/dashboard_sample/sample_policy.md</td></tr></table>
+    </section>
+    <section>
+      <h2>Trace Statistics</h2>
+      <div class="grid">
+        <div class='card'><span>Success</span><strong>3</strong></div>
+        <div class='card'><span>Errors</span><strong>0</strong></div>
+        <div class='card'><span>Average latency</span><strong>0.24</strong></div>
+        <div class='card'><span>Input tokens</span><strong>136</strong></div>
+        <div class='card'><span>Output tokens</span><strong>91</strong></div>
+      </div>
+      <table><tr><th>Name</th><th>Model</th><th>Status</th><th>Latency ms</th><th>Cost</th><th>Created</th></tr><tr><td>analysis</td><td>gemini-2.0-flash</td><td>success</td><td>0.24393299827352166</td><td>$0.000400</td><td>2026-07-01T07:10:23.931487+00:00</td></tr><tr><td>cto_interview</td><td>claude-sonnet-5</td><td>success</td><td>0.2537020009185653</td><td>$0.003100</td><td>2026-07-01T07:10:23.927745+00:00</td></tr><tr><td>support</td><td>gpt-4o-mini</td><td>success</td><td>0.2246389994979836</td><td>$0.000900</td><td>2026-07-01T07:10:23.923918+00:00</td></tr></table>
+    </section>
+    <section>
+      <h2>Cost Insights</h2>
+      <table><tr><th>Metric</th><th>Value</th></tr><tr><td>Total estimated cost</td><td>$0.004400</td></tr><tr><td>Models</td><td>{&#x27;gemini-2.0-flash&#x27;: 1, &#x27;claude-sonnet-5&#x27;: 1, &#x27;gpt-4o-mini&#x27;: 1}</td></tr></table>
+    </section>
+    <section>
+      <h2>Recommendations</h2>
+      <ul><li>Review prompts with scores below 60 and add clearer constraints.</li><li>Add tags to untagged memories to improve retrieval.</li><li>Add user_id, project_id, or workspace_id to unscoped memories.</li><li>Monitor highest-cost traces before moving workflows to production.</li></ul>
+    </section>
+  </main>
+</body>
+</html>
