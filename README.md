@@ -4,7 +4,7 @@
 
 It helps developers understand why LLM outputs fail by capturing prompts, responses, token usage, model behavior, memory usage, context gaps, and recommending better prompts for higher-quality AI results.
 
-GenAIScope is also the broader local-first Python toolkit it always was: AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks (inspection, PII, hallucination/safety analysis, structured-output validation). It helps developers, Tech Leaders, and AI engineers identify and fix issues in GenAI applications before production. Context Doctor (v0.6.0) is the newest, most opinionated layer on top of that foundation.
+GenAIScope is also the broader local-first Python toolkit it always was: AI memory, file intelligence, prompt coaching, trace logging, and GenAI production-readiness checks (inspection, PII, hallucination/safety analysis, structured-output validation). It helps developers, Tech Leaders, and AI engineers identify and fix issues in GenAI applications before production. Context Doctor (v0.6.0) is the newest, most opinionated layer on top of that foundation, and v0.7.0 connects it to live LLM providers, MCP, and the wider agent-tooling ecosystem.
 
 ## What is Context Doctor?
 
@@ -31,6 +31,11 @@ Weak LLM answers are usually a *context* problem, not a model problem: the promp
 - **Semantic cache foundation** - Reuse responses with deterministic hybrid text similarity
 - **Prompt coach** - Get local comments and improvement suggestions for weak prompts
 - **Static dashboard** - Generate a local HTML dashboard with memory, file, prompt, trace, and cost insights
+- **Live LLM gateway (v0.7.0)** - `genaiscope ask` / `scope.gateway` auto-routes to OpenAI/Anthropic/Google with fallback, logging a health score on every call
+- **MCP tools (v0.7.0)** - `doctor_diagnose`, `analytics_*`, `report_generate`, plus the v0.4.0 memory tools, over `genaiscope serve mcp`
+- **Cross-encoder reranking (v0.7.0)** - Opt-in `rerank=True` on memory search for higher-precision retrieval
+- **Agent evaluation (v0.7.0)** - `genaiscope.evals.run_agent_eval` scores multi-step agent trajectories
+- **LangChain / LlamaIndex / OpenTelemetry / Langfuse (v0.7.0)** - Drop-in memory ABCs, OTel span export, and Langfuse batch export
 
 ## What Makes GenAIScope Different
 
@@ -50,14 +55,29 @@ pip install genaiscope
 ### Optional Dependencies
 
 ```bash
-# For OpenAI support
-pip install genaiscope[openai]
+# All live gateway providers (OpenAI + Anthropic + Google) -- needed for `genaiscope ask`
+pip install genaiscope[providers]
 
-# For Anthropic support
-pip install genaiscope[anthropic]
+# Redis-backed memory/tracing for production
+pip install genaiscope[redis]
 
-# For Google Gemini support
-pip install genaiscope[google]
+# Real embeddings + cross-encoder reranking
+pip install genaiscope[embeddings]
+
+# MCP server (Context Doctor + memory tools)
+pip install genaiscope[mcp]
+
+# REST API server
+pip install genaiscope[server]
+
+# OpenTelemetry span export
+pip install genaiscope[otel]
+
+# LangChain chat-history integration
+pip install genaiscope[langchain]
+
+# LlamaIndex memory integration
+pip install genaiscope[llamaindex]
 
 # For development
 pip install genaiscope[dev]
@@ -65,7 +85,7 @@ pip install genaiscope[dev]
 # For documentation building
 pip install genaiscope[docs]
 
-# Everything
+# Everything (providers, redis, embeddings, mcp, server, otel, langchain, llamaindex)
 pip install genaiscope[all]
 ```
 
@@ -541,12 +561,15 @@ genaiscope/
 │   ├── tracing/              # Local trace logging
 │   ├── embeddings/, vector/  # Pluggable embeddings + vector search
 │   ├── cache/                # Semantic cache
-│   ├── mcp/, server/, adapters/  # MCP memory server, REST API, provider adapters
-│   ├── evals/                # Memory retrieval eval harness
+│   ├── mcp/, server/, adapters/  # MCP memory + Context Doctor tools, REST API, provider adapters
+│   ├── evals/                # Memory retrieval eval harness + v0.7.0 agent-trajectory eval
 │   ├── dashboard/             # Static memory/file/trace HTML dashboard
 │   ├── context/, doctor/      # v0.6.0: ContextBuilder, ContextDoctor
 │   ├── cost/, router/         # v0.6.0: CostEstimator, model-type recommender
 │   ├── analytics/, report/    # v0.6.0: usage/pattern analytics, Context Doctor HTML report
+│   ├── gateway/                # v0.7.0: multi-provider live LLM gateway (`scope.gateway`, `genaiscope ask`)
+│   ├── integrations/           # v0.7.0: LangChain, LlamaIndex, OpenTelemetry integrations
+│   ├── export/                 # v0.7.0: Langfuse batch export (`genaiscope export --format langfuse`)
 │   └── files/                 # File memory (TXT/MD/JSON/CSV)
 └── tests/                  # Test suite (one file per module, see tests/)
 ```
